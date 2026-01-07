@@ -173,7 +173,7 @@ export const getNFCCards = async (req: AuthRequest, res: Response) => {
 
 export const getCategories = async (req: AuthRequest, res: Response) => {
   try {
-    const categories = await prisma.category.findMany({
+    const categories = await (prisma as any).category.findMany({
       orderBy: { name: 'asc' }
     });
     res.json({ categories });
@@ -192,11 +192,11 @@ export const createCategory = async (req: AuthRequest, res: Response) => {
 
     // Check if code exists
     if (code) {
-      const existing = await prisma.category.findUnique({ where: { code } });
+      const existing = await (prisma as any).category.findUnique({ where: { code } });
       if (existing) return res.status(400).json({ error: 'Category code already exists' });
     }
 
-    const category = await prisma.category.create({
+    const category = await (prisma as any).category.create({
       data: {
         name,
         code: code || name.toUpperCase().replace(/[^A-Z0-9]/g, '_'),
@@ -215,7 +215,7 @@ export const updateCategory = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { name, description, isActive } = req.body;
-    const category = await prisma.category.update({
+    const category = await (prisma as any).category.update({
       where: { id },
       data: { name, description, isActive }
     });
@@ -228,7 +228,7 @@ export const updateCategory = async (req: AuthRequest, res: Response) => {
 export const deleteCategory = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    await prisma.category.delete({ where: { id } });
+    await (prisma as any).category.delete({ where: { id } });
     res.json({ success: true, message: 'Category deleted' });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -562,10 +562,10 @@ export const getEmployees = async (req: AuthRequest, res: Response) => {
       phone: emp.user.phone,
       department: emp.department,
       position: emp.position,
-      salary: emp.salary,
-      status: emp.status,
-      dateOfJoining: emp.joiningDate,
-      bankAccount: emp.bankAccount
+      salary: (emp as any).salary,
+      status: (emp as any).status,
+      dateOfJoining: (emp as any).joiningDate,
+      bankAccount: (emp as any).bankAccount
     }));
 
     res.json({ employees: formattedEmployees });
@@ -632,7 +632,7 @@ export const createEmployee = async (req: AuthRequest, res: Response) => {
           joiningDate: new Date(dateOfJoining),
           status: 'active',
           bankAccount
-        }
+        } as any
       });
 
       return { user, profile };
@@ -699,7 +699,7 @@ export const updateEmployee = async (req: AuthRequest, res: Response) => {
           status, // 'active', 'inactive', 'on_leave'
           joiningDate: new Date(dateOfJoining),
           bankAccount
-        }
+        } as any
       })
     ]);
 

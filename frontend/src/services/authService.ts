@@ -4,7 +4,7 @@ import { LoginCredentials, AuthResponse, UserRole } from '../types/auth';
 // Use production URL by default, but local port 9000 for development
 const API_URL = import.meta.env.VITE_API_URL ||
   (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? 'http://localhost:9000'
+    ? 'https://big-pos-backend-production.up.railway.app'
     : 'https://bigcompany-api.alexandratechlab.com');
 
 // Role-specific endpoints (admin uses separate internal authentication)

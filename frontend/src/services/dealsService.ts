@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:9000';
+const API_URL = import.meta.env.VITE_API_URL || 'https://big-pos-backend-production.up.railway.app';
 
 const getAuthHeader = () => {
     const token = localStorage.getItem('bigcompany_token');

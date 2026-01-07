@@ -44,7 +44,7 @@ export const createSupplier = async (req: AuthRequest, res: Response) => {
             return res.status(400).json({ error: 'Supplier with this name or email already exists' });
         }
 
-        const supplier = await prisma.supplier.create({
+        const supplier = await (prisma.supplier.create as any)({
             data: {
                 name,
                 contactPerson,
