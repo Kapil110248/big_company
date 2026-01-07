@@ -37,28 +37,75 @@ import {
   GlobalOutlined,
   ApiOutlined,
 } from '@ant-design/icons';
+import { retailerApi } from '../../services/apiService';
 import { useAuth } from '../../contexts/AuthContext';
 
 const { Title, Text, Paragraph } = Typography;
 const { TabPane } = Tabs;
 
 export const ProfileSettingsPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, login } = useAuth(); // Assuming login or setUser can update context, but maybe just re-fetch is enough.
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [profileForm] = Form.useForm();
   const [settingsForm] = Form.useForm();
+  // State for fetched profile data to supplement auth user data
+  const [profileData, setProfileData] = useState<any>(null);
 
   const isWholesaler = user?.role === 'wholesaler';
   const isRetailer = user?.role === 'retailer';
+
+  // Fetch profile on mount
+  React.useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        if (isRetailer) {
+          const response = await retailerApi.getProfile();
+          setProfileData(response.data);
+          profileForm.setFieldsValue({
+             name: response.data.name || user?.name,
+             company_name: response.data.shop_name || user?.company_name || user?.shop_name,
+             phone: response.data.phone || user?.phone,
+             email: response.data.email || user?.email,
+             address: response.data.address || 'Kigali, Rwanda',
+             tin_number: response.data.tin_number || 'TIN123456789',
+          });
+        }
+      } catch (error) {
+        console.error('Failed to load profile', error);
+      }
+    };
+    loadProfile();
+  }, [isRetailer, profileForm, user]);
 
   const handleSaveProfile = async (values: any) => {
     setLoading(true);
     try {
       console.log('Updating profile:', values);
-      message.success('Profile updated successfully');
+      
+      if (isRetailer) {
+        const response = await retailerApi.updateProfile({
+           name: values.name,
+           shop_name: values.company_name, // Map company_name field to shop_name
+           email: values.email,
+           address: values.address,
+           tin_number: values.tin_number
+           // phone is usually read-only or requires verify
+        });
+        
+        message.success('Profile updated successfully');
+        setProfileData(response.data.profile || values);
+        
+        // Optionally update global auth state if name changed
+        // login(response.data.user); // If supported
+      } else {
+         // Fallback for other roles or mock
+         message.success('Profile updated (Mock)');
+      }
+      
       setEditing(false);
     } catch (error) {
+      console.error(error);
       message.error('Failed to update profile');
     } finally {
       setLoading(false);
@@ -69,6 +116,7 @@ export const ProfileSettingsPage: React.FC = () => {
     setLoading(true);
     try {
       console.log('Updating settings:', values);
+      // Implementation for settings update would go here
       message.success('Settings updated successfully');
     } catch (error) {
       message.error('Failed to update settings');

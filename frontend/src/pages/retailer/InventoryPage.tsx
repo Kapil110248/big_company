@@ -20,6 +20,7 @@ import {
   Descriptions,
   Badge,
   Alert,
+  Tabs,
 } from 'antd';
 import {
   SearchOutlined,
@@ -137,7 +138,7 @@ export const InventoryPage = () => {
       let normalizedProducts = (data.products || []).map((p: any) => ({
         ...p,
         selling_price: p.selling_price || p.price || 0,
-        cost_price: p.cost_price || p.cost || 0,
+        cost_price: p.cost_price || p.cost || p.costPrice || 0,
         low_stock_threshold: p.low_stock_threshold || p.threshold || 10,
       }));
 
@@ -234,7 +235,21 @@ export const InventoryPage = () => {
   const handleCreateProduct = async (values: any) => {
     setCreateLoading(true);
     try {
-      await retailerApi.createProduct(values);
+      // Map form values to backend expectations
+      const payload = values.entry_type === 'manual' 
+        ? {
+            name: values.name,
+            category: values.category,
+            price: values.selling_price, // Backend expects 'price' as selling price
+            costPrice: values.cost_price,
+            stock: values.stock,
+            sku: values.sku
+          }
+        : {
+            invoice_number: values.invoice_number
+          };
+
+      await retailerApi.createProduct(payload);
 
       message.success('Product created successfully');
       setCreateModal(false);
@@ -656,9 +671,9 @@ export const InventoryPage = () => {
         )}
       </Modal>
 
-      {/* Add from Invoice Modal */}
+      {/* Add Product Modal */}
       <Modal
-        title="Add Products from Wholesaler Invoice"
+        title="Add Product"
         open={createModal}
         onCancel={() => {
           setCreateModal(false);
@@ -666,43 +681,116 @@ export const InventoryPage = () => {
         }}
         onOk={() => createForm.submit()}
         confirmLoading={createLoading}
-        width={500}
+        width={600}
       >
-        <Alert
-          message="Invoice-Based Inventory Update"
-          description="Enter the invoice number from your wholesaler order. The system will automatically add all items from the invoice to your inventory with the correct prices and quantities."
-          type="info"
-          showIcon
-          style={{ marginBottom: 24 }}
-        />
-
         <Form
           form={createForm}
           layout="vertical"
           onFinish={handleCreateProduct}
+          initialValues={{ entry_type: 'invoice' }}
         >
-          <Form.Item
-            name="invoice_number"
-            label="Invoice Number"
-            rules={[{ required: true, message: 'Please enter the invoice number from your wholesaler' }]}
-          >
-            <Input
-              placeholder="e.g., INV-2024-001234"
-              prefix={<BarcodeOutlined />}
-              size="large"
-            />
+          <Form.Item name="entry_type" noStyle>
+            <Input type="hidden" />
           </Form.Item>
 
-          <div style={{ background: '#f5f5f5', padding: 16, borderRadius: 8, marginTop: 16 }}>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              <strong>How it works:</strong>
-              <br />• Enter the invoice number from your wholesaler order
-              <br />• System verifies the invoice with your assigned wholesaler
-              <br />• All items from the invoice are automatically added to your inventory
-              <br />• Prices are set based on the wholesaler's pricing
-              <br />• Item codes match between your inventory and the wholesaler
-            </Text>
-          </div>
+          <Tabs
+            defaultActiveKey="invoice"
+            onChange={(key) => createForm.setFieldsValue({ entry_type: key })}
+            items={[
+              {
+                key: 'invoice',
+                label: 'Import from Invoice',
+                children: (
+                  <>
+                    <Alert
+                      message="Invoice-Based Inventory Update"
+                      description="Enter the invoice number from your wholesaler order to automatically import verified products."
+                      type="info"
+                      showIcon
+                      style={{ marginBottom: 24 }}
+                    />
+                    <Form.Item
+                      name="invoice_number"
+                      label="Invoice Number"
+                      rules={[{ required: createForm.getFieldValue('entry_type') === 'invoice', message: 'Please enter the invoice number' }]}
+                    >
+                      <Input
+                        placeholder="e.g., INV-2024-001234"
+                        prefix={<BarcodeOutlined />}
+                        size="large"
+                      />
+                    </Form.Item>
+                    <div style={{ background: '#f5f5f5', padding: 16, borderRadius: 8 }}>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        <strong>Note:</strong> Items are imported with wholesaler prices. You can adjust selling prices afterwards.
+                      </Text>
+                    </div>
+                  </>
+                ),
+              },
+              {
+                key: 'manual',
+                label: 'Manual Entry',
+                children: (
+                  <>
+                    <Alert
+                      message="Manual Product Entry"
+                      description="Use this for products from local suppliers or existing stock without a digital invoice."
+                      type="warning"
+                      showIcon
+                      style={{ marginBottom: 24 }}
+                    />
+                    <Row gutter={16}>
+                      <Col span={16}>
+                        <Form.Item
+                          name="name"
+                          label="Product Name"
+                          rules={[{ required: createForm.getFieldValue('entry_type') === 'manual', message: 'Name is required' }]}
+                        >
+                          <Input placeholder="e.g. Local Rice 1kg" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={8}>
+                        <Form.Item
+                          name="category"
+                          label="Category"
+                          rules={[{ required: createForm.getFieldValue('entry_type') === 'manual', message: 'Category is required' }]}
+                        >
+                          <Select placeholder="Select">
+                            {categories.map((c) => (
+                              <Select.Option key={c} value={c}>{c}</Select.Option>
+                            ))}
+                          </Select>
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                    
+                    <Row gutter={16}>
+                      <Col span={8}>
+                         <Form.Item name="selling_price" label="Selling Price" rules={[{ required: createForm.getFieldValue('entry_type') === 'manual', message: 'Required' }]}>
+                           <InputNumber style={{ width: '100%' }} min={0} placeholder="RWF" />
+                         </Form.Item>
+                      </Col>
+                      <Col span={8}>
+                         <Form.Item name="cost_price" label="Cost Price">
+                           <InputNumber style={{ width: '100%' }} min={0} placeholder="RWF" />
+                         </Form.Item>
+                      </Col>
+                      <Col span={8}>
+                         <Form.Item name="stock" label="Initial Stock">
+                           <InputNumber style={{ width: '100%' }} min={0} placeholder="Qty" />
+                         </Form.Item>
+                      </Col>
+                    </Row>
+
+                    <Form.Item name="sku" label="SKU / Barcode (Optional)">
+                      <Input placeholder="Scan or type code" prefix={<BarcodeOutlined />} />
+                    </Form.Item>
+                  </>
+                ),
+              },
+            ]}
+          />
         </Form>
       </Modal>
 

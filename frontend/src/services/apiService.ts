@@ -191,8 +191,13 @@ export const consumerApi = {
 
 // Retailer APIs
 export const retailerApi = {
-  // Dashboard
-  getDashboardStats: () => api.get('/retailer/dashboard/stats'),
+  // Profile
+  getProfile: () => api.get('/retailer/profile'),
+  updateProfile: (data: any) => api.put('/retailer/profile', data),
+
+  // Dashboard & Analytics
+  getDashboardStats: () => api.get('/retailer/dashboard'),
+  getAnalytics: (params?: any) => api.get('/retailer/analytics', { params }),
 
   // Inventory
   getInventory: (params?: any) => api.get('/retailer/inventory', { params }),
@@ -224,7 +229,7 @@ export const retailerApi = {
 
   // Wallet & Credit
   getWallet: () => api.get('/retailer/wallet'),
-  getWalletBalance: () => api.get('/retailer/wallet/balance'),
+  getWalletBalance: () => api.get('/retailer/wallet'), // Mapped to /retailer/wallet as it returns balance
   getWalletTransactions: (params?: any) => api.get('/retailer/wallet/transactions', { params }),
   getCreditInfo: () => api.get('/retailer/credit'),
   getCreditOrders: (params?: any) => api.get('/retailer/credit/orders', { params }),
@@ -232,6 +237,7 @@ export const retailerApi = {
   requestCredit: (data: any) => api.post('/retailer/credit/request', data),
   makeRepayment: (orderId: string, amount: number) =>
     api.post(`/retailer/credit/orders/${orderId}/repay`, { amount }),
+  topUpWallet: (amount: number, source: string) => api.post('/retailer/wallet/topup', { amount, source }),
 
   // Wholesalers & Stock
   getWholesalers: () => api.get('/retailer/wholesalers'),
