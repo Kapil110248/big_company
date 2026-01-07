@@ -18,6 +18,7 @@ import {
   Row,
   Col,
   Statistic,
+  Popconfirm,
 } from 'antd';
 import {
   ReloadOutlined,
@@ -27,8 +28,10 @@ import {
   DollarOutlined,
   InboxOutlined,
   SearchOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import { wholesalerApi } from '../../services/apiService';
+import { AddInventoryModal } from '../../components/wholesaler/AddInventoryModal';
 
 const { Title, Text } = Typography;
 
@@ -117,7 +120,13 @@ export const InventoryPage = () => {
       ]);
 
       const productsData = productsResponse.data;
-      const productsList = productsData.products || [];
+      const productsList = (productsData.products || []).map((p: any) => ({
+        ...p,
+        cost_price: p.costPrice || 0,
+        wholesale_price: p.price || 0,
+        low_stock_threshold: p.lowStockThreshold || 0,
+        invoice_number: p.invoiceNumber || '',
+      }));
       setProducts(productsList);
       setPagination(prev => ({ ...prev, total: productsData.total || 0 }));
 
@@ -159,20 +168,7 @@ export const InventoryPage = () => {
   };
 
   const handleCreateProduct = async () => {
-    try {
-      const values = await form.validateFields();
-      setActionLoading(true);
-      await wholesalerApi.createProduct(values);
-      message.success('Product created successfully');
-      setCreateModalOpen(false);
-      form.resetFields();
-      fetchProducts(true);
-    } catch (err: any) {
-      if (err.errorFields) return;
-      message.error(err.response?.data?.error || 'Failed to create product');
-    } finally {
-      setActionLoading(false);
-    }
+    // This is now handled by AddInventoryModal
   };
 
   const handleUpdateProduct = async () => {
@@ -236,6 +232,19 @@ export const InventoryPage = () => {
     } catch (err: any) {
       if (err.errorFields) return;
       message.error(err.response?.data?.error || 'Failed to update price');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    try {
+      setActionLoading(true);
+      await wholesalerApi.deleteProduct(id);
+      message.success('Product deleted successfully');
+      fetchProducts(true);
+    } catch (err: any) {
+      message.error(err.response?.data?.error || 'Failed to delete product');
     } finally {
       setActionLoading(false);
     }
@@ -363,6 +372,15 @@ export const InventoryPage = () => {
           >
             Price
           </Button>
+          <Popconfirm
+            title="Are you sure you want to delete this product?"
+            onConfirm={() => handleDeleteProduct(record.id)}
+            okText="Yes"
+            cancelText="No"
+            okButtonProps={{ danger: true, loading: actionLoading }}
+          >
+            <Button size="small" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
         </Space>
       ),
     },
@@ -546,129 +564,14 @@ export const InventoryPage = () => {
         />
       </Card>
 
-      {/* Create Product Modal */}
-      <Modal
-        title="Add New Product"
+      <AddInventoryModal
         open={createModalOpen}
-        onCancel={() => {
+        onCancel={() => setCreateModalOpen(false)}
+        onSuccess={() => {
           setCreateModalOpen(false);
-          form.resetFields();
+          fetchProducts(true);
         }}
-        onOk={handleCreateProduct}
-        confirmLoading={actionLoading}
-        okText="Create Product"
-        width={600}
-      >
-        <Form form={form} layout="vertical">
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="sku"
-                label="SKU"
-                rules={[{ required: true, message: 'SKU is required' }]}
-              >
-                <Input placeholder="e.g., RICE-5KG" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="name"
-                label="Product Name"
-                rules={[{ required: true, message: 'Name is required' }]}
-              >
-                <Input placeholder="e.g., Rice (5kg)" />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="category"
-                label="Category"
-                rules={[{ required: true, message: 'Category is required' }]}
-              >
-                <Select placeholder="Select category">
-                  {categories.map(cat => (
-                    <Select.Option key={cat} value={cat}>{cat}</Select.Option>
-                  ))}
-                </Select>
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="unit"
-                label="Unit"
-                rules={[{ required: true, message: 'Unit is required' }]}
-              >
-                <Select placeholder="Select unit">
-                  <Select.Option value="units">Units</Select.Option>
-                  <Select.Option value="kg">Kilograms</Select.Option>
-                  <Select.Option value="liters">Liters</Select.Option>
-                  <Select.Option value="packs">Packs</Select.Option>
-                  <Select.Option value="boxes">Boxes</Select.Option>
-                </Select>
-              </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="cost_price"
-                label="Cost Price (RWF)"
-                rules={[{ required: true, message: 'Cost price is required' }]}
-              >
-                <InputNumber min={0} style={{ width: '100%' }} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="wholesale_price"
-                label="Wholesale Price (RWF)"
-                rules={[{ required: true, message: 'Wholesale price is required' }]}
-              >
-                <InputNumber min={0} style={{ width: '100%' }} />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="stock"
-                label="Initial Stock"
-                rules={[{ required: true, message: 'Stock is required' }]}
-              >
-                <InputNumber min={0} style={{ width: '100%' }} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="low_stock_threshold"
-                label="Low Stock Threshold"
-                rules={[{ required: true, message: 'Threshold is required' }]}
-              >
-                <InputNumber min={1} style={{ width: '100%' }} />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="invoice_number"
-                label="Wholesaler Invoice Number"
-                tooltip="Retailers will use this invoice number to add inventory to their stock"
-                rules={[{ required: true, message: 'Invoice number is required for retailer reference' }]}
-              >
-                <Input placeholder="e.g., INV-2024-001" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="barcode" label="Barcode (Optional)">
-                <Input placeholder="Product barcode" />
-              </Form.Item>
-            </Col>
-          </Row>
-        </Form>
-      </Modal>
+      />
 
       {/* Edit Product Modal */}
       <Modal

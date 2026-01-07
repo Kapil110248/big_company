@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Card,
   Row,
@@ -118,65 +119,29 @@ const cardHoverVariants = {
   },
 };
 
-// Chart data
-const salesData = [
-  { name: '9AM', sales: 45000, customers: 8 },
-  { name: '10AM', sales: 85000, customers: 15 },
-  { name: '11AM', sales: 125000, customers: 22 },
-  { name: '12PM', sales: 180000, customers: 35 },
-  { name: '1PM', sales: 150000, customers: 28 },
-  { name: '2PM', sales: 95000, customers: 18 },
-  { name: '3PM', sales: 120000, customers: 24 },
-  { name: '4PM', sales: 165000, customers: 32 },
-  { name: '5PM', sales: 200000, customers: 42 },
-];
+// Chart data interface
+interface ChartData {
+  name: string;
+  sales: number;
+  customers: number;
+}
 
-const weeklyData = [
-  { day: 'Mon', revenue: 850000, orders: 45 },
-  { day: 'Tue', revenue: 720000, orders: 38 },
-  { day: 'Wed', revenue: 980000, orders: 52 },
-  { day: 'Thu', revenue: 890000, orders: 48 },
-  { day: 'Fri', revenue: 1250000, orders: 65 },
-  { day: 'Sat', revenue: 1450000, orders: 78 },
-  { day: 'Sun', revenue: 980000, orders: 52 },
-];
-
-const paymentMethods = [
-  { name: 'Mobile Money', value: 40, color: '#ffcc00' },
-  { name: 'Dashboard Wallet', value: 35, color: '#1890ff' },
-  { name: 'Credit Wallet', value: 20, color: '#722ed1' },
-  { name: 'Gas Rewards', value: 5, color: '#fa541c' },
-];
-
-const topProducts = [
-  { id: 1, name: 'Inyange Milk 1L', sold: 156, revenue: 140400, stock: 45, trend: 12 },
-  { id: 2, name: 'Bralirwa Beer 500ml', sold: 142, revenue: 127800, stock: 78, trend: 8 },
-  { id: 3, name: 'Bread (Large)', sold: 128, revenue: 64000, stock: 25, trend: -5 },
-  { id: 4, name: 'Sugar 1kg', sold: 98, revenue: 98000, stock: 32, trend: 15 },
-  { id: 5, name: 'Cooking Oil 1L', sold: 85, revenue: 170000, stock: 18, trend: 6 },
-];
-
-const recentActivity = [
-  { time: '2 min ago', action: 'Sale completed', details: 'Order #RET-892 - 15,000 RWF', type: 'sale', icon: <ShoppingCartOutlined /> },
-  { time: '10 min ago', action: 'NFC payment', details: 'Card ending 4532 - 8,500 RWF', type: 'payment', icon: <CreditCardOutlined /> },
-  { time: '25 min ago', action: 'Low stock alert', details: 'Inyange Milk - 5 units left', type: 'alert', icon: <WarningOutlined /> },
-  { time: '1 hour ago', action: 'Wholesaler order', details: 'Order placed to BIG Company', type: 'order', icon: <TruckOutlined /> },
-  { time: '2 hours ago', action: 'Loyalty reward', details: 'Customer earned 150 points', type: 'reward', icon: <GiftOutlined /> },
-];
-
-const lowStockItems = [
-  { name: 'Inyange Milk 1L', stock: 5, threshold: 20 },
-  { name: 'Bread (Large)', stock: 8, threshold: 30 },
-  { name: 'Cooking Oil 1L', stock: 3, threshold: 15 },
-  { name: 'Sugar 1kg', stock: 10, threshold: 25 },
-];
 
 export const RetailerDashboard: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(dayjs());
+
+  // Dynamic Chart Data
+  const [salesData, setSalesData] = useState<ChartData[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [topProducts, setTopProducts] = useState<any[]>([]);
+  const [lowStockItems, setLowStockItems] = useState<any[]>([]);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+
 
   useEffect(() => {
     fetchDashboardData();
@@ -188,40 +153,30 @@ export const RetailerDashboard: React.FC = () => {
     setLoading(true);
     try {
       const response = await retailerApi.getDashboardStats();
-      setStats({
-        ...response.data,
-        todaySales: 1250000,
-        customersToday: 85,
-        growth: { orders: 12.5, revenue: 18.3 },
-      });
+      setStats(response.data);
       setRecentOrders(response.data.recentOrders || []);
+      setSalesData(response.data.salesData || []);
+      setPaymentMethods(response.data.paymentMethods || []);
+      setTopProducts(response.data.topProducts || []);
+      setLowStockItems(response.data.lowStockList || []);
+      setRecentActivity([]); // Placeholder as backend implementation for activity is pending
+
     } catch (error) {
       console.error('Error fetching dashboard:', error);
       setStats({
-        totalOrders: 156,
-        pendingOrders: 8,
-        totalRevenue: 2450000, // Capital + Profit combined
-        inventoryItems: 89,
-        lowStockItems: 12,
-        capitalWallet: 1850000, // Inventory value at wholesaler price
-        profitWallet: 600000, // Profit margin from sales
-        creditLimit: 500000,
-        todaySales: 1250000,
-        customersToday: 85,
-        growth: { orders: 12.5, revenue: 18.3 },
-        // Payment method revenue breakdown
-        dashboardWalletRevenue: 875000, // 35% of today's sales
-        creditWalletRevenue: 500000, // 20% of today's sales
-        mobileMoneyRevenue: 1000000, // 40% of today's sales
-        gasRewardsGiven: 2.5, // M³ given as rewards today
-        gasRewardsValue: 125000, // 5% equivalent value
+        totalOrders: 0,
+        pendingOrders: 0,
+        totalRevenue: 0,
+        inventoryItems: 0,
+        lowStockItems: 0,
+        capitalWallet: 0,
+        profitWallet: 0,
+        creditLimit: 0,
+        todaySales: 0,
+        customersToday: 0,
+        growth: { orders: 0, revenue: 0 }
       });
-      setRecentOrders([
-        { id: 'RET-001', customer: 'John Doe', items: 5, total: 15000, status: 'completed', date: '2024-11-30T14:30:00', payment: 'momo' },
-        { id: 'RET-002', customer: 'Jane Smith', items: 3, total: 8500, status: 'pending', date: '2024-11-30T14:15:00', payment: 'nfc' },
-        { id: 'RET-003', customer: 'Bob Wilson', items: 8, total: 22000, status: 'completed', date: '2024-11-30T13:45:00', payment: 'cash' },
-        { id: 'RET-004', customer: 'Alice Brown', items: 2, total: 5500, status: 'completed', date: '2024-11-30T13:20:00', payment: 'momo' },
-      ]);
+      setRecentOrders([]);
     } finally {
       setLoading(false);
     }
@@ -399,6 +354,7 @@ export const RetailerDashboard: React.FC = () => {
                     type="primary"
                     size="large"
                     icon={<ScanOutlined />}
+                    onClick={() => navigate('/retailer/pos')}
                     style={{ background: 'white', color: '#1890ff', border: 'none', fontWeight: 600 }}
                   >
                     Open POS
@@ -528,7 +484,7 @@ export const RetailerDashboard: React.FC = () => {
                   <Text strong>Today's Sales by Hour</Text>
                 </Space>
               }
-              extra={<Button type="link">View Analytics</Button>}
+              extra={<Button type="link" onClick={() => navigate('/retailer/analytics')}>View Analytics</Button>}
               style={{ borderRadius: 12 }}
             >
               <ResponsiveContainer width="100%" height={280}>
@@ -633,7 +589,7 @@ export const RetailerDashboard: React.FC = () => {
                   <Badge count={recentOrders.length} style={{ backgroundColor: '#1890ff' }} />
                 </Space>
               }
-              extra={<Button type="primary" ghost>View All</Button>}
+              extra={<Button type="primary" ghost onClick={() => navigate('/retailer/orders')}>View All</Button>}
               style={{ borderRadius: 12 }}
             >
               <Table
@@ -707,7 +663,7 @@ export const RetailerDashboard: React.FC = () => {
                   <Text strong>Top Selling Products</Text>
                 </Space>
               }
-              extra={<Button type="link">View Inventory</Button>}
+              extra={<Button type="link" onClick={() => navigate('/retailer/inventory')}>View Inventory</Button>}
               style={{ borderRadius: 12 }}
             >
               <List
@@ -758,7 +714,7 @@ export const RetailerDashboard: React.FC = () => {
                   <Badge count={lowStockItems.length} style={{ backgroundColor: '#fa8c16' }} />
                 </Space>
               }
-              extra={<Button type="primary" ghost icon={<PlusOutlined />}>Order Stock</Button>}
+              extra={<Button type="primary" ghost icon={<PlusOutlined />} onClick={() => navigate('/retailer/add-stock')}>Order Stock</Button>}
               style={{ borderRadius: 12 }}
             >
               <AnimatePresence>
@@ -772,7 +728,7 @@ export const RetailerDashboard: React.FC = () => {
                     >
                       <List.Item
                         actions={[
-                          <Button key="reorder" type="primary" size="small" style={{ background: '#fa8c16', borderColor: '#fa8c16' }}>
+                          <Button key="reorder" type="primary" size="small" style={{ background: '#fa8c16', borderColor: '#fa8c16' }} onClick={() => navigate('/retailer/add-stock')}>
                             Reorder
                           </Button>,
                         ]}
@@ -805,35 +761,7 @@ export const RetailerDashboard: React.FC = () => {
         </Col>
       </Row>
 
-      {/* Weekly Performance */}
-      <motion.div variants={itemVariants} style={{ marginTop: 24 }}>
-        <Card
-          title={
-            <Space>
-              <BarChartOutlined style={{ color: '#1890ff' }} />
-              <Text strong>Weekly Performance</Text>
-            </Space>
-          }
-          style={{ borderRadius: 12 }}
-        >
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={weeklyData} barGap={8}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="day" stroke="#8c8c8c" />
-              <YAxis yAxisId="left" tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`} stroke="#1890ff" />
-              <YAxis yAxisId="right" orientation="right" stroke="#52c41a" />
-              <RechartsTooltip
-                formatter={(value: number, name: string) =>
-                  name === 'revenue' ? formatFullCurrency(value) : value
-                }
-              />
-              <Legend />
-              <Bar yAxisId="left" dataKey="revenue" name="Revenue" fill="#1890ff" radius={[4, 4, 0, 0]} />
-              <Line yAxisId="right" type="monotone" dataKey="orders" name="Orders" stroke="#52c41a" strokeWidth={2} />
-            </BarChart>
-          </ResponsiveContainer>
-        </Card>
-      </motion.div>
+
     </motion.div>
   );
 };

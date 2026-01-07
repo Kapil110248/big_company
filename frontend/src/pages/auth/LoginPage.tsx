@@ -200,7 +200,7 @@ export const LoginPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { login, isLoading } = useAuth();
 
-  // Get role from URL or default to consumer (admin uses separate internal auth)
+  // Get role from URL or default to consumer
   const urlRole = searchParams.get('role');
   // Only allow public roles - admin uses separate internal auth
   const validPublicRoles: PublicUserRole[] = ['consumer', 'employee', 'retailer', 'wholesaler', 'admin'];
@@ -211,7 +211,7 @@ export const LoginPage: React.FC = () => {
   // Phone/PIN for consumers
   const [phone, setPhone] = useState('');
   const [pin, setPin] = useState('');
-  // Email/Password for retailer/wholesaler
+  // Email/Password for retailer/wholesaler/admin
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -258,11 +258,6 @@ export const LoginPage: React.FC = () => {
   const fillDemoCredentials = () => {
     // Fill based on current visible method
     if (authMethod === 'phone') {
-      // If role is consumer but method is phone, use phone creds. 
-      // If role is consumer and method is email, we need email creds?
-      // The config has one set.
-      // For consumer, config has phone/pin, but empty email/pass.
-      // I should hardcode demo email for consumer here if missing in config?
       if (activeRole === 'consumer') {
         setPhone('250788100001');
         setPin('1234');

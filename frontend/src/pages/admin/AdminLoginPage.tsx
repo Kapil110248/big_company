@@ -75,7 +75,7 @@ export const AdminLoginPage: React.FC = () => {
           <Text type="secondary">BIG Company Rwanda - Administration</Text>
         </div>
 
-        {/* Demo Credentials Box */}
+        {/* Default Backend Credentials Box */}
         <Card
           size="small"
           style={{
@@ -86,7 +86,7 @@ export const AdminLoginPage: React.FC = () => {
           }}
         >
           <div style={{ marginBottom: 8 }}>
-            <Text strong style={{ color: '#f5222d' }}>Demo Credentials</Text>
+            <Text strong style={{ color: '#f5222d' }}>Default Backend Admin</Text>
           </div>
           <div style={{ fontSize: 12 }}>
             <div>Email: <code>{demoCredentials.email}</code></div>
@@ -99,7 +99,7 @@ export const AdminLoginPage: React.FC = () => {
             onClick={fillDemoCredentials}
             style={{ marginTop: 8 }}
           >
-            Auto-fill Demo Credentials
+            Auto-fill Credentials
           </Button>
         </Card>
 

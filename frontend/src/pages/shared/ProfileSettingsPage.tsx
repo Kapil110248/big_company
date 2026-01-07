@@ -18,6 +18,7 @@ import {
   Alert,
   Select,
   InputNumber,
+  Modal,
 } from 'antd';
 import {
   UserOutlined,
@@ -37,28 +38,87 @@ import {
   GlobalOutlined,
   ApiOutlined,
 } from '@ant-design/icons';
+import { retailerApi } from '../../services/apiService';
 import { useAuth } from '../../contexts/AuthContext';
+import { wholesalerApi, authApi } from '../../services/apiService';
+import { useEffect } from 'react';
 
 const { Title, Text, Paragraph } = Typography;
 const { TabPane } = Tabs;
 
 export const ProfileSettingsPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, login } = useAuth(); // Assuming login or setUser can update context, but maybe just re-fetch is enough.
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [profileForm] = Form.useForm();
   const [settingsForm] = Form.useForm();
+  const [passwordForm] = Form.useForm();
+  const [pinForm] = Form.useForm();
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
 
   const isWholesaler = user?.role === 'wholesaler';
   const isRetailer = user?.role === 'retailer';
 
-  const handleSaveProfile = async (values: any) => {
+  const [profileData, setProfileData] = useState<any>(null);
+  const [settingsData, setSettingsData] = useState<any>(null);
+
+  const fetchProfile = async () => {
+    if (!isWholesaler) return;
     setLoading(true);
     try {
-      console.log('Updating profile:', values);
-      message.success('Profile updated successfully');
-      setEditing(false);
+      const response = await wholesalerApi.getProfile();
+      if (response.data.success) {
+        setProfileData(response.data.profile);
+        setSettingsData(response.data.profile.settings);
+        profileForm.setFieldsValue({
+          name: response.data.profile.user.name,
+          company_name: response.data.profile.companyName,
+          phone: response.data.profile.user.phone,
+          email: response.data.profile.user.email,
+          address: response.data.profile.address,
+          tin_number: response.data.profile.tinNumber,
+        });
+        if (response.data.profile.settings) {
+          settingsForm.setFieldsValue({
+            payment_terms: response.data.profile.settings.paymentTerms,
+            default_credit: response.data.profile.settings.defaultCreditLimit,
+            accepted_payments: response.data.profile.settings.acceptedPayments || ['wallet', 'mobile_money', 'cash'],
+            ussd_business_code: response.data.profile.settings.ussdBusinessCode,
+            ussd_language: response.data.profile.settings.ussdLanguage,
+            ussd_auto_response: response.data.profile.settings.ussdAutoResponse,
+          });
+        }
+      }
     } catch (error) {
+      console.error('Error fetching profile:', error);
+      message.error('Failed to load profile data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const handleSaveProfile = async (values: any) => {
+    if (!isWholesaler) {
+      message.info('Simulation: Profile updated');
+      setEditing(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await wholesalerApi.updateProfile(values);
+      if (response.data.success) {
+        message.success('Profile updated successfully');
+        setProfileData(response.data.profile);
+        setEditing(false);
+      }
+    } catch (error) {
+      console.error(error);
       message.error('Failed to update profile');
     } finally {
       setLoading(false);
@@ -66,12 +126,68 @@ export const ProfileSettingsPage: React.FC = () => {
   };
 
   const handleSaveSettings = async (values: any) => {
+    if (!isWholesaler) {
+      message.info('Simulation: Settings updated');
+      return;
+    }
+
     setLoading(true);
     try {
-      console.log('Updating settings:', values);
-      message.success('Settings updated successfully');
+      // Map frontend keys to backend keys if necessary
+      const payload = {
+        paymentTerms: values.payment_terms,
+        defaultCreditLimit: values.default_credit,
+        acceptedPayments: values.accepted_payments,
+        ussdBusinessCode: values.ussd_business_code,
+        ussdLanguage: values.ussd_language,
+        ussdAutoResponse: values.ussd_auto_response,
+      };
+
+      const response = await wholesalerApi.updateSettings(payload);
+      if (response.data.success) {
+        message.success('Settings updated successfully');
+        setSettingsData(response.data.settings);
+      }
     } catch (error) {
       message.error('Failed to update settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleNotificationToggle = async (key: string, enabled: boolean) => {
+    if (!isWholesaler) return;
+    try {
+      await wholesalerApi.updateSettings({ [key]: enabled });
+      setSettingsData({ ...settingsData, [key]: enabled });
+    } catch (error) {
+      message.error('Failed to update notification setting');
+    }
+  };
+
+  const handleUpdatePassword = async (values: any) => {
+    setLoading(true);
+    try {
+      await authApi.updatePassword(values);
+      message.success('Password updated successfully');
+      setIsPasswordModalOpen(false);
+      passwordForm.resetFields();
+    } catch (error: any) {
+      message.error(error.response?.data?.error || 'Failed to update password');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdatePin = async (values: any) => {
+    setLoading(true);
+    try {
+      await authApi.updatePin(values);
+      message.success('PIN updated successfully');
+      setIsPinModalOpen(false);
+      pinForm.resetFields();
+    } catch (error: any) {
+      message.error(error.response?.data?.error || 'Failed to update PIN');
     } finally {
       setLoading(false);
     }
@@ -225,10 +341,18 @@ export const ProfileSettingsPage: React.FC = () => {
             <Col xs={24} lg={8}>
               <Card title={<><LockOutlined /> Security</>}>
                 <Space direction="vertical" style={{ width: '100%' }}>
-                  <Button block icon={<LockOutlined />}>
+                  <Button
+                    block
+                    icon={<LockOutlined />}
+                    onClick={() => setIsPasswordModalOpen(true)}
+                  >
                     Change Password
                   </Button>
-                  <Button block icon={<MobileOutlined />}>
+                  <Button
+                    block
+                    icon={<MobileOutlined />}
+                    onClick={() => setIsPinModalOpen(true)}
+                  >
                     Change PIN
                   </Button>
                   <Button block icon={<PhoneOutlined />}>
@@ -251,28 +375,52 @@ export const ProfileSettingsPage: React.FC = () => {
         >
           <Card title={<><BellOutlined /> Notification Preferences</>}>
             <List>
-              <List.Item actions={[<Switch defaultChecked key="switch" />]}>
+              <List.Item actions={[
+                <Switch
+                  checked={settingsData?.pushNotifications ?? true}
+                  onChange={(checked) => handleNotificationToggle('pushNotifications', checked)}
+                  key="push"
+                />
+              ]}>
                 <List.Item.Meta
                   avatar={<BellOutlined style={{ fontSize: 20, color: roleColor }} />}
                   title="Push Notifications"
                   description="Receive order updates and alerts"
                 />
               </List.Item>
-              <List.Item actions={[<Switch defaultChecked key="switch" />]}>
+              <List.Item actions={[
+                <Switch
+                  checked={settingsData?.emailNotifications ?? true}
+                  onChange={(checked) => handleNotificationToggle('emailNotifications', checked)}
+                  key="email"
+                />
+              ]}>
                 <List.Item.Meta
                   avatar={<MailOutlined style={{ fontSize: 20, color: roleColor }} />}
                   title="Email Notifications"
                   description="Receive daily summaries and reports"
                 />
               </List.Item>
-              <List.Item actions={[<Switch defaultChecked key="switch" />]}>
+              <List.Item actions={[
+                <Switch
+                  checked={settingsData?.smsNotifications ?? true}
+                  onChange={(checked) => handleNotificationToggle('smsNotifications', checked)}
+                  key="sms"
+                />
+              ]}>
                 <List.Item.Meta
                   avatar={<PhoneOutlined style={{ fontSize: 20, color: roleColor }} />}
                   title="SMS Notifications"
                   description="Receive critical alerts via SMS"
                 />
               </List.Item>
-              <List.Item actions={[<Switch key="switch" />]}>
+              <List.Item actions={[
+                <Switch
+                  checked={settingsData?.ussdAlerts ?? false}
+                  onChange={(checked) => handleNotificationToggle('ussdAlerts', checked)}
+                  key="ussd"
+                />
+              ]}>
                 <List.Item.Meta
                   avatar={<MobileOutlined style={{ fontSize: 20, color: roleColor }} />}
                   title="USSD Alerts"
@@ -300,7 +448,7 @@ export const ProfileSettingsPage: React.FC = () => {
             </Col>
             <Col xs={24} lg={12}>
               <Card title={<><MobileOutlined /> USSD Configuration</>}>
-                <Form layout="vertical">
+                <Form layout="vertical" form={settingsForm} onFinish={handleSaveSettings}>
                   <Form.Item label="USSD Short Code" help="Your assigned USSD code">
                     <Input
                       addonBefore="*"
@@ -310,26 +458,22 @@ export const ProfileSettingsPage: React.FC = () => {
                       disabled
                     />
                   </Form.Item>
-                  <Form.Item label="Business Code" help="Unique code for your business">
+                  <Form.Item label="Business Code" name="ussd_business_code" help="Unique code for your business">
                     <Input
                       placeholder="BIZ001"
-                      defaultValue={isWholesaler ? 'WHL001' : 'RET001'}
                     />
                   </Form.Item>
-                  <Form.Item label="USSD Menu Language">
-                    <Select defaultValue="en">
+                  <Form.Item label="USSD Menu Language" name="ussd_language">
+                    <Select>
                       <Select.Option value="en">English</Select.Option>
                       <Select.Option value="rw">Kinyarwanda</Select.Option>
                       <Select.Option value="fr">French</Select.Option>
                     </Select>
                   </Form.Item>
-                  <Form.Item label="Auto-Response" valuePropName="checked">
-                    <Switch defaultChecked />
-                    <Text type="secondary" style={{ marginLeft: 8 }}>
-                      Automatically respond to USSD queries
-                    </Text>
+                  <Form.Item label="Auto-Response" name="ussd_auto_response" valuePropName="checked">
+                    <Switch />
                   </Form.Item>
-                  <Button type="primary" icon={<SaveOutlined />}>
+                  <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={loading}>
                     Save USSD Settings
                   </Button>
                 </Form>
@@ -376,7 +520,7 @@ export const ProfileSettingsPage: React.FC = () => {
               <Card title={<><DollarOutlined /> Payment Settings</>}>
                 <Form layout="vertical" form={settingsForm} onFinish={handleSaveSettings}>
                   <Form.Item label="Default Payment Terms" name="payment_terms">
-                    <Select defaultValue="net30">
+                    <Select>
                       <Select.Option value="cod">Cash on Delivery</Select.Option>
                       <Select.Option value="net7">Net 7 Days</Select.Option>
                       <Select.Option value="net14">Net 14 Days</Select.Option>
@@ -389,12 +533,11 @@ export const ProfileSettingsPage: React.FC = () => {
                         style={{ width: '100%' }}
                         formatter={(value) => `RWF ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                         parser={(value) => value?.replace(/RWF\s?|(,*)/g, '') as any}
-                        defaultValue={50000}
                       />
                     </Form.Item>
                   )}
-                  <Form.Item label="Accepted Payment Methods">
-                    <Select mode="multiple" defaultValue={['wallet', 'mobile_money', 'cash']}>
+                  <Form.Item label="Accepted Payment Methods" name="accepted_payments">
+                    <Select mode="multiple">
                       <Select.Option value="wallet">Wallet Balance</Select.Option>
                       <Select.Option value="mobile_money">Mobile Money</Select.Option>
                       <Select.Option value="cash">Cash</Select.Option>
@@ -402,7 +545,7 @@ export const ProfileSettingsPage: React.FC = () => {
                       <Select.Option value="nfc">NFC Card</Select.Option>
                     </Select>
                   </Form.Item>
-                  <Button type="primary" htmlType="submit">
+                  <Button type="primary" htmlType="submit" loading={loading}>
                     Save Payment Settings
                   </Button>
                 </Form>
@@ -473,6 +616,111 @@ export const ProfileSettingsPage: React.FC = () => {
           </Row>
         </TabPane>
       </Tabs>
+
+      {/* Password Change Modal */}
+      <Modal
+        title="Change Password"
+        open={isPasswordModalOpen}
+        onCancel={() => setIsPasswordModalOpen(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <Form form={passwordForm} layout="vertical" onFinish={handleUpdatePassword}>
+          <Form.Item
+            name="old_password"
+            label="Current Password"
+            rules={[{ required: true, message: 'Please enter current password' }]}
+          >
+            <Input.Password prefix={<LockOutlined />} />
+          </Form.Item>
+          <Form.Item
+            name="new_password"
+            label="New Password"
+            rules={[
+              { required: true, message: 'Please enter new password' },
+              { min: 6, message: 'Password must be at least 6 characters' }
+            ]}
+          >
+            <Input.Password prefix={<LockOutlined />} />
+          </Form.Item>
+          <Form.Item
+            name="confirm_password"
+            label="Confirm New Password"
+            dependencies={['new_password']}
+            rules={[
+              { required: true, message: 'Please confirm new password' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('new_password') === value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('Passwords do not match'));
+                },
+              }),
+            ]}
+          >
+            <Input.Password prefix={<LockOutlined />} />
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" htmlType="submit" loading={loading} block>
+              Update Password
+            </Button>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* PIN Change Modal */}
+      <Modal
+        title="Change PIN"
+        open={isPinModalOpen}
+        onCancel={() => setIsPinModalOpen(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <Form form={pinForm} layout="vertical" onFinish={handleUpdatePin}>
+          <Form.Item
+            name="old_pin"
+            label="Current PIN"
+            rules={[{ required: true, message: 'Please enter current PIN' }]}
+          >
+            <Input.Password prefix={<MobileOutlined />} maxLength={4} />
+          </Form.Item>
+          <Form.Item
+            name="new_pin"
+            label="New PIN"
+            rules={[
+              { required: true, message: 'Please enter new PIN' },
+              { len: 4, message: 'PIN must be exactly 4 digits' },
+              { pattern: /^\d+$/, message: 'PIN must contain only numbers' }
+            ]}
+          >
+            <Input.Password prefix={<MobileOutlined />} maxLength={4} />
+          </Form.Item>
+          <Form.Item
+            name="confirm_pin"
+            label="Confirm New PIN"
+            dependencies={['new_pin']}
+            rules={[
+              { required: true, message: 'Please confirm new PIN' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('new_pin') === value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('PINs do not match'));
+                },
+              }),
+            ]}
+          >
+            <Input.Password prefix={<MobileOutlined />} maxLength={4} />
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" htmlType="submit" loading={loading} block>
+              Update PIN
+            </Button>
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 };

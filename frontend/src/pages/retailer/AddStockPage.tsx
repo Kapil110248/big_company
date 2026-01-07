@@ -52,6 +52,10 @@ interface CartItem {
   quantity: number;
 }
 
+import { retailerApi } from '../../services/apiService';
+
+// ... (imports remain)
+
 const AddStockPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [products, setProducts] = useState<WholesalerProduct[]>([]);
@@ -59,23 +63,37 @@ const AddStockPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [checkoutModalVisible, setCheckoutModalVisible] = useState(false);
-  const [capitalWalletBalance] = useState(1850000); // Mock capital wallet balance
+  const [capitalWalletBalance, setCapitalWalletBalance] = useState(0);
 
-  // Mock wholesaler products
+  // Load wholesaler products and wallet balance
   useEffect(() => {
-    setProducts([
-      { id: '1', name: 'Inyange Milk 1L', category: 'Dairy', wholesaler_price: 900, stock_available: 500, min_order: 24, unit: 'unit' },
-      { id: '2', name: 'Bralirwa Beer 500ml', category: 'Beverages', wholesaler_price: 700, stock_available: 1000, min_order: 24, unit: 'unit' },
-      { id: '3', name: 'Bread (Large)', category: 'Bakery', wholesaler_price: 400, stock_available: 200, min_order: 10, unit: 'unit' },
-      { id: '4', name: 'Sugar 1kg', category: 'Groceries', wholesaler_price: 850, stock_available: 300, min_order: 20, unit: 'kg' },
-      { id: '5', name: 'Cooking Oil 1L', category: 'Groceries', wholesaler_price: 1800, stock_available: 150, min_order: 12, unit: 'bottle' },
-      { id: '6', name: 'Rice 5kg', category: 'Groceries', wholesaler_price: 4500, stock_available: 200, min_order: 10, unit: 'bag' },
-      { id: '7', name: 'Coca-Cola 500ml', category: 'Beverages', wholesaler_price: 350, stock_available: 2000, min_order: 24, unit: 'unit' },
-      { id: '8', name: 'Fanta Orange 500ml', category: 'Beverages', wholesaler_price: 350, stock_available: 1500, min_order: 24, unit: 'unit' },
-      { id: '9', name: 'Eggs (Tray of 30)', category: 'Dairy', wholesaler_price: 4800, stock_available: 100, min_order: 5, unit: 'tray' },
-      { id: '10', name: 'Tomato Paste 400g', category: 'Groceries', wholesaler_price: 600, stock_available: 250, min_order: 12, unit: 'can' },
-    ]);
+    fetchData();
   }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    
+    // 1. Fetch Wholesaler Products
+    try {
+      const productsRes = await retailerApi.getWholesalerProducts({ limit: 100 });
+      setProducts(productsRes.data?.products || []);
+    } catch (error: any) {
+      console.error('Failed to load wholesaler products:', error);
+      message.error(`Failed to load wholesaler products: ${error.response?.data?.error || error.message}`);
+    }
+
+    // 2. Fetch Wallet Balance
+    try {
+      const walletRes = await retailerApi.getWallet();
+      setCapitalWalletBalance(walletRes.data?.capital_wallet_balance || walletRes.data?.balance || 0);
+    } catch (error: any) {
+      console.error('Failed to load wallet:', error);
+      // Optional: don't show error to user if just wallet fails, or show a different one
+      // message.error('Failed to load wallet balance'); 
+    }
+
+    setLoading(false);
+  };
 
   const categories = [...new Set(products.map(p => p.category))];
 
@@ -127,13 +145,39 @@ const AddStockPage: React.FC = () => {
   const confirmOrder = async () => {
     setLoading(true);
     try {
-      // Simulate order placement
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      message.success('Order placed successfully! Your inventory will be updated when the order arrives.');
+      // Prepare order items for backend
+      const orderItems = cart.map(item => ({
+        product_id: item.product.id,
+        quantity: item.quantity,
+        price: item.product.wholesaler_price
+      }));
+
+      const response = await retailerApi.createOrder({
+        items: orderItems,
+        totalAmount: cartTotal
+      });
+
+      const orderId = response.data.order.id;
+
+      Modal.success({
+        title: 'Order Placed Successfully!',
+        content: (
+          <div>
+            <p>Your order has been sent to the wholesaler.</p>
+            <p><strong>Order ID:</strong></p>
+            <Typography.Paragraph copyable>{orderId}</Typography.Paragraph>
+            <p>Use this Order ID to add these items to your Inventory.</p>
+          </div>
+        ),
+      });
+
       setCart([]);
       setCheckoutModalVisible(false);
-    } catch (error) {
-      message.error('Failed to place order');
+      // Refresh balance
+      fetchData();
+    } catch (error: any) {
+      console.error('Order failed:', error);
+      message.error(error.response?.data?.error || 'Failed to place order');
     } finally {
       setLoading(false);
     }

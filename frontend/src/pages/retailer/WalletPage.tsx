@@ -247,6 +247,32 @@ export const WalletPage = () => {
     return () => clearInterval(interval);
   }, [activeTab]);
 
+  const [invoiceModal, setInvoiceModal] = useState<{ visible: boolean; transaction: Transaction | null }>({
+    visible: false,
+    transaction: null
+  });
+
+  const handleViewInvoice = (transaction: Transaction) => {
+    setInvoiceModal({ visible: true, transaction });
+  };
+
+  const [isAddCapitalModalVisible, setIsAddCapitalModalVisible] = useState(false);
+
+  const handleAddCapital = async (values: any) => {
+    setProcessing(true);
+    try {
+      await retailerApi.topUpWallet(values.amount, values.source);
+      message.success('Capital added successfully');
+      setIsAddCapitalModalVisible(false);
+      fetchWalletData(true);
+    } catch (error: any) {
+      console.error(error);
+      message.error(error.response?.data?.error || 'Failed to add capital');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const handleMakeRepayment = async () => {
     if (!repaymentModal.order || repaymentAmount <= 0) {
       message.warning('Please enter a valid repayment amount');
@@ -527,18 +553,56 @@ export const WalletPage = () => {
                 </div>
               </Col>
               <Col xs={24} md={12} style={{ textAlign: 'right' }}>
-                <Button
+                  <Button
                   icon={<PlusOutlined />}
                   type="primary"
                   size="large"
                   style={{ background: 'rgba(255,255,255,0.2)', borderColor: 'white' }}
-                  onClick={() => message.info('Add Capital feature - coming soon')}
+                  onClick={() => setIsAddCapitalModalVisible(true)}
                 >
                   Add Capital
                 </Button>
               </Col>
             </Row>
           </Card>
+
+          <Modal
+            title="Add Capital to Wallet"
+            open={isAddCapitalModalVisible}
+            onCancel={() => setIsAddCapitalModalVisible(false)}
+            footer={null}
+          >
+            <Form layout="vertical" onFinish={handleAddCapital}>
+              <Form.Item
+                name="amount"
+                label="Amount (RWF)"
+                rules={[{ required: true, message: 'Please enter amount' }]}
+              >
+                <InputNumber<number>
+                  style={{ width: '100%' }}
+                  formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                  parser={(value) => Number(value?.replace(/\$\s?|(,*)/g, '') || 0)}
+                  min={100}
+                />
+              </Form.Item>
+              <Form.Item
+                name="source"
+                label="Source"
+                initialValue="mobile_money"
+              >
+                <Select>
+                  <Option value="mobile_money">Mobile Money</Option>
+                  <Option value="bank_transfer">Bank Transfer</Option>
+                  <Option value="cash">Cash Agent</Option>
+                </Select>
+              </Form.Item>
+              <Form.Item>
+                <Button type="primary" htmlType="submit" loading={processing} block>
+                  Add Capital
+                </Button>
+              </Form.Item>
+            </Form>
+          </Modal>
 
           <Alert
             message="Capital Wallet Usage"
@@ -551,7 +615,16 @@ export const WalletPage = () => {
           {/* Transaction History */}
           <Card
             title={<><HistoryOutlined /> Wholesaler Orders History</>}
-            extra={<Button size="small" icon={<EyeOutlined />}>View Invoice</Button>}
+            extra={
+              <Button 
+                size="small" 
+                icon={<EyeOutlined />}
+                disabled={transactions.length === 0}
+                onClick={() => handleViewInvoice(transactions[0])}
+              >
+                View Latest Invoice
+              </Button>
+            }
           >
             {transactions.length > 0 ? (
               <Table
@@ -562,7 +635,12 @@ export const WalletPage = () => {
                     title: 'Invoice',
                     key: 'invoice',
                     render: (_: any, record: Transaction) => (
-                      <Button type="link" size="small" icon={<EyeOutlined />}>
+                      <Button 
+                        type="link" 
+                        size="small" 
+                        icon={<EyeOutlined />}
+                        onClick={() => handleViewInvoice(record)}
+                      >
                         View
                       </Button>
                     ),
@@ -585,6 +663,54 @@ export const WalletPage = () => {
               <Empty description="No transactions yet" />
             )}
           </Card>
+
+          <Modal
+            title="Invoice Details"
+            open={invoiceModal.visible}
+            onCancel={() => setInvoiceModal({ visible: false, transaction: null })}
+            footer={[
+              <Button key="close" onClick={() => setInvoiceModal({ visible: false, transaction: null })}>
+                Close
+              </Button>,
+              <Button key="print" type="primary" icon={<SendOutlined />} onClick={() => window.print()}>
+                Print
+              </Button>
+            ]}
+            width={700}
+          >
+            {invoiceModal.transaction && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
+                  <div>
+                    <Title level={4}>INVOICE</Title>
+                    <Text type="secondary">#{invoiceModal.transaction.reference?.toUpperCase() || invoiceModal.transaction.id.substring(0,8).toUpperCase()}</Text>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <Title level={5}>BIG Company</Title>
+                    <Text>Kigali, Rwanda</Text>
+                  </div>
+                </div>
+
+                <Descriptions bordered column={1} size="small">
+                  <Descriptions.Item label="Date">{new Date(invoiceModal.transaction.created_at).toLocaleString()}</Descriptions.Item>
+                  <Descriptions.Item label="Transaction Type">{invoiceModal.transaction.type.toUpperCase()}</Descriptions.Item>
+                  <Descriptions.Item label="Description">{invoiceModal.transaction.description}</Descriptions.Item>
+                  <Descriptions.Item label="Amount">
+                    <Text strong>{invoiceModal.transaction.amount?.toLocaleString()} RWF</Text>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Status">
+                    <Tag color="green">{invoiceModal.transaction.status.toUpperCase()}</Tag>
+                  </Descriptions.Item>
+                </Descriptions>
+
+                <Divider />
+                
+                <div style={{ textAlign: 'center', color: '#999', marginTop: 24 }}>
+                  <Text type="secondary">Thank you for your business!</Text>
+                </div>
+              </div>
+            )}
+          </Modal>
         </TabPane>
 
         {/* Profit Wallet Tab */}

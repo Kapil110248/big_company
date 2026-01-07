@@ -191,8 +191,13 @@ export const consumerApi = {
 
 // Retailer APIs
 export const retailerApi = {
-  // Dashboard
-  getDashboardStats: () => api.get('/retailer/dashboard/stats'),
+  // Profile
+  getProfile: () => api.get('/retailer/profile'),
+  updateProfile: (data: any) => api.put('/retailer/profile', data),
+
+  // Dashboard & Analytics
+  getDashboardStats: () => api.get('/retailer/dashboard'),
+  getAnalytics: (params?: any) => api.get('/retailer/analytics', { params }),
 
   // Inventory
   getInventory: (params?: any) => api.get('/retailer/inventory', { params }),
@@ -224,7 +229,7 @@ export const retailerApi = {
 
   // Wallet & Credit
   getWallet: () => api.get('/retailer/wallet'),
-  getWalletBalance: () => api.get('/retailer/wallet/balance'),
+  getWalletBalance: () => api.get('/retailer/wallet'), // Mapped to /retailer/wallet as it returns balance
   getWalletTransactions: (params?: any) => api.get('/retailer/wallet/transactions', { params }),
   getCreditInfo: () => api.get('/retailer/credit'),
   getCreditOrders: (params?: any) => api.get('/retailer/credit/orders', { params }),
@@ -232,11 +237,11 @@ export const retailerApi = {
   requestCredit: (data: any) => api.post('/retailer/credit/request', data),
   makeRepayment: (orderId: string, amount: number) =>
     api.post(`/retailer/credit/orders/${orderId}/repay`, { amount }),
+  topUpWallet: (amount: number, source: string) => api.post('/retailer/wallet/topup', { amount, source }),
 
-  // Wholesalers
+  // Wholesalers & Stock
   getWholesalers: () => api.get('/retailer/wholesalers'),
-  getWholesalerProducts: (wholesalerId: string) =>
-    api.get(`/retailer/wholesalers/${wholesalerId}/products`),
+  getWholesalerProducts: (params?: any) => api.get('/retailer/wholesaler/products', { params }), // Correct endpoint
 
   // Branch Management
   getBranches: () => api.get('/retailer/branches'),
@@ -317,6 +322,7 @@ export const wholesalerApi = {
     api.post(`/wholesaler/inventory/${id}/stock`, { quantity, type, reason }),
   updatePrice: (id: string, wholesalePrice: number, costPrice?: number) =>
     api.put(`/wholesaler/inventory/${id}/price`, { wholesale_price: wholesalePrice, cost_price: costPrice }),
+  deleteProduct: (id: string) => api.delete(`/wholesaler/inventory/${id}`),
 
   // Retailer Orders
   getRetailerOrders: (params?: any) => api.get('/wholesaler/retailer-orders', { params }),
@@ -339,7 +345,7 @@ export const wholesalerApi = {
     api.get(`/wholesaler/retailers/${id}/orders`, { params: { limit } }),
   getRetailerStats: (id: string) => api.get(`/wholesaler/retailers/${id}/stats`),
   updateRetailerCreditLimit: (id: string, creditLimit: number) =>
-    api.put(`/wholesaler/retailers/${id}/credit-limit`, { credit_limit: creditLimit }),
+    api.put(`/wholesaler/retailers/${id}/credit-limit`, { creditLimit }),
   blockRetailer: (id: string, reason: string) =>
     api.post(`/wholesaler/retailers/${id}/block`, { reason }),
   unblockRetailer: (id: string) => api.post(`/wholesaler/retailers/${id}/unblock`),
@@ -350,6 +356,11 @@ export const wholesalerApi = {
   approveCreditRequest: (id: string) => api.post(`/wholesaler/credit-requests/${id}/approve`),
   rejectCreditRequest: (id: string, reason?: string) =>
     api.post(`/wholesaler/credit-requests/${id}/reject`, { reason }),
+
+  // Profile & Settings
+  getProfile: () => api.get('/wholesaler/profile'),
+  updateProfile: (data: any) => api.put('/wholesaler/profile', data),
+  updateSettings: (data: any) => api.put('/wholesaler/settings', data),
 };
 
 // NFC Card APIs - for managing customer NFC cards
@@ -475,6 +486,24 @@ export const adminApi = {
   // Settings
   getSettings: () => api.get('/admin/settings'),
   updateSettings: (settings: Record<string, any>) => api.post('/admin/settings', { settings }),
+};
+
+// General Auth APIs (Protected)
+// These use role-based endpoints: /wholesaler/auth, /retailer/auth, etc.
+const getUserRole = () => {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  return user.role || 'wholesaler'; // Default to wholesaler
+};
+
+export const authApi = {
+  updatePassword: (data: any) => {
+    const role = getUserRole();
+    return api.put(`/${role}/auth/update-password`, data);
+  },
+  updatePin: (data: any) => {
+    const role = getUserRole();
+    return api.put(`/${role}/auth/update-pin`, data);
+  },
 };
 
 export default api;
