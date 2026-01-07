@@ -16,6 +16,15 @@ const AUTH_ENDPOINTS: Record<UserRole, string> = {
   admin: `${API_URL}/admin/auth/login`, // Admin authentication endpoint
 };
 
+// Demo credentials for fallback/mock login
+const demoCreds: any = {
+  consumer: { phone: '250788100001', pin: '1234' },
+  retailer: { email: 'retailer@bigcompany.rw', password: 'retailer123' },
+  wholesaler: { email: 'wholesaler@bigcompany.rw', password: 'wholesaler123' },
+  employee: { email: 'employee@bigcompany.rw', password: 'employee123' },
+  admin: { email: 'admin@bigcompany.rw', password: 'admin123' }
+};
+
 export const authService = {
   async login(credentials: LoginCredentials, role: UserRole): Promise<AuthResponse> {
     // FORCED MOCK MODE REMOVED - Using real backend
@@ -31,17 +40,17 @@ export const authService = {
       // Consumer backend expects 'phone' not 'phone_number'
       // NOW SUPPORTS Email/Password too
       if (credentials.email && credentials.password) {
-         payload = {
-            email: credentials.email,
-            password: credentials.password,
-            role: 'consumer'
-         };
+        payload = {
+          email: credentials.email,
+          password: credentials.password,
+          role: 'consumer'
+        };
       } else {
-         payload = {
-            phone: credentials.phone_number || '',
-            pin: credentials.pin || '',
-            role: 'consumer' 
-         };
+        payload = {
+          phone: credentials.phone_number || '',
+          pin: credentials.pin || '',
+          role: 'consumer'
+        };
       }
     } else {
       // Employee, retailer, wholesaler, and admin use email/password
