@@ -212,7 +212,7 @@ const AdminDashboard: React.FC = () => {
           endDate: dateRange[1].format('YYYY-MM-DD'),
           groupBy,
         }),
-      ]);
+      ]); 
 
       if (txResponse.data?.report) {
         setTransactionReport(txResponse.data.report);
@@ -833,16 +833,16 @@ const AdminDashboard: React.FC = () => {
                   <Avatar
                     icon={
                       item.entity_type === 'customer' ? <UserOutlined /> :
-                      item.entity_type === 'order' ? <ShoppingCartOutlined /> :
-                      item.entity_type === 'loan' ? <BankOutlined /> :
-                      <CreditCardOutlined />
+                        item.entity_type === 'order' ? <ShoppingCartOutlined /> :
+                          item.entity_type === 'loan' ? <BankOutlined /> :
+                            <CreditCardOutlined />
                     }
                     style={{
                       backgroundColor:
                         item.entity_type === 'customer' ? '#1890ff' :
-                        item.entity_type === 'order' ? '#52c41a' :
-                        item.entity_type === 'loan' ? '#722ed1' :
-                        '#faad14'
+                          item.entity_type === 'order' ? '#52c41a' :
+                            item.entity_type === 'loan' ? '#722ed1' :
+                              '#faad14'
                     }}
                   />
                 }
