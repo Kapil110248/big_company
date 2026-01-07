@@ -18,6 +18,17 @@ import {
   approveCreditRequest,
   rejectCreditRequest
 } from '../controllers/retailersController';
+import {
+  getManagementStats,
+  getManagementSuppliers,
+  getSupplierDetails,
+  createSupplier,
+  updateSupplier,
+  deleteSupplier,
+  getProfitInvoices,
+  getProfitInvoiceDetails,
+  updateInvoiceStatus
+} from '../controllers/managementController';
 import { authenticate } from '../middleware/authMiddleware';
 
 const router = Router();
@@ -46,6 +57,17 @@ router.get('/retailers/stats', getRetailerStats);
 // Suppliers
 router.get('/supplier-orders', getSupplierOrders);
 router.get('/suppliers', getSuppliers);
+
+// Management - Suppliers & Profit Invoices
+router.get('/management/stats', getManagementStats);
+router.get('/management/suppliers', getManagementSuppliers);
+router.get('/management/suppliers/:id', getSupplierDetails);
+router.post('/management/suppliers', createSupplier);
+router.put('/management/suppliers/:id', updateSupplier);
+router.delete('/management/suppliers/:id', deleteSupplier);
+router.get('/management/profit-invoices', getProfitInvoices);
+router.get('/management/profit-invoices/:id', getProfitInvoiceDetails);
+router.put('/management/profit-invoices/:id/status', updateInvoiceStatus);
 
 // Credit Management
 router.get('/credit-requests', getCreditRequestsWithStats);
