@@ -49,7 +49,7 @@ import {
   EnvironmentOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { nfcApi, walletApi } from '../../services/apiService';
+import { nfcApi, consumerApi } from '../../services/apiService';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -140,7 +140,7 @@ const ConsumerWalletPage: React.FC = () => {
   const [selectedCard, setSelectedCard] = useState<NFCCard | null>(null);
   const [activeTab, setActiveTab] = useState('transactions');
   const [cardOrdersModalVisible, setCardOrdersModalVisible] = useState(false);
-  const [cardOrders, setCardOrders] = useState<{[key: string]: CardOrder[]}>({});
+  const [cardOrders, setCardOrders] = useState<{ [key: string]: CardOrder[] }>({});
 
   const [topUpForm] = Form.useForm();
   const [refundForm] = Form.useForm();
@@ -148,170 +148,44 @@ const ConsumerWalletPage: React.FC = () => {
   const [linkCardForm] = Form.useForm();
   const [changePinForm] = Form.useForm();
 
-  // Mock data with 3-balance structure
-  const mockBalance: WalletBalance = {
-    dashboardBalance: 25000,
-    creditBalance: 5000,
-    availableBalance: 30000, // 25000 + 5000
-    currency: 'RWF',
-  };
 
-  const mockCards: NFCCard[] = [
-    {
-      id: '1',
-      uid: '04:A1:B2:C3:D4:E5:F6',
-      card_number: 'NFC-001-2024',
-      status: 'active',
-      is_primary: true,
-      linked_at: '2024-01-15T10:30:00Z',
-      last_used: '2024-11-30T09:15:00Z',
-      nickname: 'My Main Card',
-    },
-    {
-      id: '2',
-      uid: '04:F1:E2:D3:C4:B5:A6',
-      card_number: 'NFC-002-2024',
-      status: 'active',
-      is_primary: false,
-      linked_at: '2024-06-20T14:45:00Z',
-      last_used: '2024-11-25T16:30:00Z',
-      nickname: 'Backup Card',
-    },
-  ];
-
-  const mockCardOrders: {[key: string]: CardOrder[]} = {
-    '1': [ // Orders for card 1
-      {
-        id: '1',
-        order_number: 'ORD-2024-789',
-        shop_name: 'Kigali Fresh Market',
-        shop_location: 'Kimironko, Kigali',
-        amount: 25000,
-        items_count: 8,
-        date: '2024-12-05T14:30:00Z',
-        status: 'completed'
-      },
-      {
-        id: '2',
-        order_number: 'ORD-2024-756',
-        shop_name: 'City Pharmacy',
-        shop_location: 'City Center, Kigali',
-        amount: 15000,
-        items_count: 5,
-        date: '2024-12-03T11:20:00Z',
-        status: 'completed'
-      },
-      {
-        id: '3',
-        order_number: 'ORD-2024-698',
-        shop_name: 'Nyamirambo Superstore',
-        shop_location: 'Nyamirambo, Kigali',
-        amount: 42500,
-        items_count: 12,
-        date: '2024-11-28T09:45:00Z',
-        status: 'completed'
-      },
-      {
-        id: '4',
-        order_number: 'ORD-2024-623',
-        shop_name: 'Kigali Fresh Market',
-        shop_location: 'Kimironko, Kigali',
-        amount: 18000,
-        items_count: 6,
-        date: '2024-11-22T16:15:00Z',
-        status: 'completed'
-      }
-    ],
-    '2': [ // Orders for card 2
-      {
-        id: '5',
-        order_number: 'ORD-2024-812',
-        shop_name: 'Heaven Restaurant',
-        shop_location: 'Remera, Kigali',
-        amount: 35000,
-        items_count: 1,
-        date: '2024-12-01T13:00:00Z',
-        status: 'completed'
-      },
-      {
-        id: '6',
-        order_number: 'ORD-2024-745',
-        shop_name: 'MTN Service Center',
-        shop_location: 'City Center, Kigali',
-        amount: 50000,
-        items_count: 1,
-        date: '2024-11-25T10:30:00Z',
-        status: 'completed'
-      }
-    ]
-  };
-
-  const mockTransactions: Transaction[] = [
-    { id: '1', type: 'order_payment', balance_type: 'dashboard', amount: -2500, description: 'Purchase at Kigali Shop', status: 'completed', created_at: '2024-11-30T09:15:00Z', merchant_name: 'Kigali Shop', order_id: 'ORD-2024-001', meter_id: 'MTR-001234' },
-    { id: '2', type: 'top_up', balance_type: 'dashboard', amount: 10000, description: 'MTN MoMo Top-up', status: 'completed', created_at: '2024-11-29T14:30:00Z', reference_number: 'MTN-20241129-01' },
-    { id: '3', type: 'order_payment', balance_type: 'credit', amount: -1500, description: 'Purchase at Downtown Store (Credit)', status: 'completed', created_at: '2024-11-28T11:00:00Z', merchant_name: 'Downtown Store', order_id: 'ORD-2024-002' },
-    { id: '4', type: 'gas_payment', balance_type: 'dashboard', amount: -3000, description: 'Gas Top-up', status: 'completed', created_at: '2024-11-27T16:45:00Z', meter_id: 'MTR-001234', reference_number: 'GAS-20241127-01' },
-    { id: '5', type: 'refund', balance_type: 'dashboard', amount: 500, description: 'Refund from Kigali Shop', status: 'completed', created_at: '2024-11-26T10:20:00Z', reference_number: 'REF-20241126-01' },
-    { id: '6', type: 'loan_disbursement', balance_type: 'credit', amount: 5000, description: 'Credit Loan Approved', status: 'completed', created_at: '2024-11-25T09:00:00Z', reference_number: 'LOAN-20241125-01' },
-    { id: '7', type: 'top_up', balance_type: 'dashboard', amount: 15000, description: 'Airtel Money Top-up', status: 'completed', created_at: '2024-11-24T08:00:00Z', reference_number: 'ATL-20241124-01' },
-    { id: '8', type: 'order_payment', balance_type: 'dashboard', amount: -4200, description: 'Purchase at Kimironko Fresh', status: 'completed', created_at: '2024-11-23T13:30:00Z', merchant_name: 'Kimironko Fresh', order_id: 'ORD-2024-003', meter_id: 'MTR-001234' },
-  ];
-
-  const mockCreditInfo: CreditInfo = {
-    credit_limit: 10000,
-    available_credit: 5000,
-    used_credit: 5000,
-    outstanding_balance: 5000,
-    payment_status: 'current',
-    next_payment_date: '2024-12-15',
-    next_payment_amount: 1500,
-  };
-
-  const mockCreditOrders: CreditOrder[] = [
-    { id: '1', order_number: 'ORD-2024-002', amount: 1500, date: '2024-11-28', status: 'delivered' },
-    { id: '2', order_number: 'ORD-2024-006', amount: 2000, date: '2024-11-20', status: 'delivered' },
-    { id: '3', order_number: 'ORD-2024-010', amount: 1500, date: '2024-11-15', status: 'delivered' },
-  ];
-
-  const mockCreditApprovals: CreditApproval[] = [
-    {
-      id: '1',
-      amount_requested: 10000,
-      status: 'approved',
-      submitted_at: '2024-11-20T10:00:00Z',
-      reviewed_at: '2024-11-21T14:30:00Z',
-      reason: 'Approved based on transaction history and credit score',
-    },
-    {
-      id: '2',
-      amount_requested: 5000,
-      status: 'approved',
-      submitted_at: '2024-10-15T09:00:00Z',
-      reviewed_at: '2024-10-16T11:00:00Z',
-      reason: 'Initial credit approval',
-    },
-  ];
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      // Use mock data for now
-      setBalance(mockBalance);
-      setCards(mockCards);
-      setTransactions(mockTransactions);
-      setCreditInfo(mockCreditInfo);
-      setCreditOrders(mockCreditOrders);
-      setCreditApprovals(mockCreditApprovals);
-      setCardOrders(mockCardOrders);
+      // Load wallet balances
+      const walletsResponse = await walletApi.getWallets();
+      const wallets = walletsResponse.data.data || [];
+
+      const dashboardWallet = wallets.find((w: any) => w.type === 'dashboard_wallet');
+      const creditWallet = wallets.find((w: any) => w.type === 'credit_wallet');
+
+      const dashboardBal = dashboardWallet?.balance || 0;
+      const creditBal = creditWallet?.balance || 0;
+
+      setBalance({
+        dashboardBalance: dashboardBal,
+        creditBalance: creditBal,
+        availableBalance: dashboardBal + creditBal,
+        currency: 'RWF'
+      });
+
+      // Load NFC cards
+      const cardsResponse = await nfcApi.getMyCards();
+      setCards(cardsResponse.data.data || []);
+
+      // Load transactions
+      const transactionsResponse = await walletApi.getWalletTransactions();
+      setTransactions(transactionsResponse.data.data || []);
+
+      // TODO: Load credit info, credit orders, credit approvals when APIs are available
+      setCreditInfo(null);
+      setCreditOrders([]);
+      setCreditApprovals([]);
+      setCardOrders({});
     } catch (error) {
       console.error('Failed to load wallet data:', error);
-      setBalance(mockBalance);
-      setCards(mockCards);
-      setTransactions(mockTransactions);
-      setCreditInfo(mockCreditInfo);
-      setCreditOrders(mockCreditOrders);
-      setCreditApprovals(mockCreditApprovals);
-      setCardOrders(mockCardOrders);
+      message.error('Failed to load wallet data');
     } finally {
       setLoading(false);
     }

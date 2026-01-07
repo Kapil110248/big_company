@@ -134,235 +134,56 @@ export const OrdersPage: React.FC = () => {
     setLoading(true);
     try {
       const response = await consumerApi.getOrders();
-      // Filter out null/invalid orders and ensure all required fields exist
-      const validOrders = (response.data.orders || []).filter((order: Order | null) =>
-        order &&
-        order.id &&
-        order.order_number &&
-        order.status &&
-        order.retailer &&
-        order.items &&
-        Array.isArray(order.items)
-      );
-      setOrders(validOrders.length > 0 ? validOrders : getMockOrders());
+      const ordersData = response.data.data || [];
+
+      // Transform backend data to frontend format
+      const transformedOrders = ordersData.map((order: any) => {
+        const metadata = JSON.parse(order.metadata || '{}');
+        const items = JSON.parse(order.items || '[]');
+
+        return {
+          id: order.id,
+          order_number: `ORD-${order.id.substring(0, 8).toUpperCase()}`,
+          status: order.status,
+          retailer: {
+            id: 'ret_001',
+            name: metadata.retailerName || 'Gas Station',
+            location: metadata.location,
+            phone: metadata.phone
+          },
+          items: items.map((item: any, idx: number) => ({
+            id: `item_${idx}`,
+            product_id: `prod_${idx}`,
+            product_name: item.productName || `Gas Topup (${item.meterNumber})`,
+            quantity: item.quantity || 1,
+            unit_price: item.amount || order.amount,
+            total: item.amount || order.amount
+          })),
+          subtotal: order.amount,
+          delivery_fee: 0,
+          total: order.amount,
+          delivery_address: metadata.deliveryAddress,
+          notes: metadata.notes,
+          created_at: order.created_at,
+          updated_at: order.updated_at,
+          payment_method: metadata.paymentMethod || 'wallet',
+          meter_id: items[0]?.meterNumber,
+          cancellation_reason: metadata.cancellationReason,
+          cancelled_by: metadata.cancelledBy
+        };
+      });
+
+      setOrders(transformedOrders);
     } catch (error) {
       console.error('Error fetching orders:', error);
-      setOrders(getMockOrders());
+      message.error('Failed to load orders');
+      setOrders([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const getMockOrders = (): Order[] => [
-    {
-      id: '1',
-      order_number: 'ORD-2024-001',
-      status: 'delivered',
-      retailer: {
-        id: 'ret_001',
-        name: 'Kigali Shop',
-        location: 'Kigali City Center, KN 78 St',
-        phone: '+250 788 123 456',
-      },
-      items: [
-        { id: 'i1', product_id: '1', product_name: 'Fanta Orange 500ml', quantity: 3, unit_price: 500, total: 1500 },
-        { id: 'i2', product_id: '3', product_name: 'Inyange Milk 1L', quantity: 2, unit_price: 1200, total: 2400 },
-        { id: 'i3', product_id: '7', product_name: 'Bread 400g', quantity: 2, unit_price: 800, total: 1600 },
-      ],
-      subtotal: 5500,
-      delivery_fee: 500,
-      total: 6000,
-      delivery_address: 'Kigali, Remera, KG 11 Ave, House #45',
-      created_at: '2024-11-28T10:30:00Z',
-      updated_at: '2024-11-28T15:00:00Z',
-      packager: {
-        name: 'Jean Paul Niyonzima',
-        phone: '+250 788 111 222',
-        packed_at: '2024-11-28T11:00:00Z',
-      },
-      shipper: {
-        name: 'Eric Uwimana',
-        phone: '+250 788 333 444',
-        vehicle: 'RAC 123A (Motorcycle)',
-        shipped_at: '2024-11-28T13:00:00Z',
-      },
-      payment_method: 'Dashboard Balance',
-      meter_id: 'MTR-001234',
-    },
-    {
-      id: '2',
-      order_number: 'ORD-2024-002',
-      status: 'shipped',
-      retailer: {
-        id: 'ret_002',
-        name: 'Nyamirambo Market',
-        location: 'Nyamirambo, Kigali',
-        phone: '+250 788 234 567',
-      },
-      items: [
-        { id: 'i3', product_id: '5', product_name: 'Mukamira Rice 5kg', quantity: 1, unit_price: 8000, total: 8000 },
-        { id: 'i4', product_id: '6', product_name: 'Sunflower Oil 1L', quantity: 2, unit_price: 3500, total: 7000 },
-        { id: 'i5', product_id: '4', product_name: 'Blue Band 500g', quantity: 1, unit_price: 2500, total: 2500 },
-      ],
-      subtotal: 17500,
-      delivery_fee: 800,
-      total: 18300,
-      delivery_address: 'Kigali, Kimironko, KG 5 Ave, Apt 12B',
-      estimated_delivery: '2024-11-30T14:00:00Z',
-      created_at: '2024-11-29T09:00:00Z',
-      updated_at: '2024-11-29T16:00:00Z',
-      packager: {
-        name: 'Marie Claire Mukandutiye',
-        phone: '+250 788 555 666',
-        packed_at: '2024-11-29T12:00:00Z',
-      },
-      shipper: {
-        name: 'Patrick Habimana',
-        phone: '+250 788 777 888',
-        vehicle: 'RAD 456B (Van)',
-        shipped_at: '2024-11-29T15:00:00Z',
-      },
-      payment_method: 'card_credit',
-      meter_id: 'N/A',
-    },
-    {
-      id: '3',
-      order_number: 'ORD-2024-003',
-      status: 'processing',
-      retailer: {
-        id: 'ret_003',
-        name: 'Kimironko Fresh',
-        location: 'Kimironko, KG 11 Ave',
-        phone: '+250 788 345 678',
-      },
-      items: [
-        { id: 'i6', product_id: '2', product_name: 'Coca-Cola 500ml', quantity: 6, unit_price: 500, total: 3000 },
-        { id: 'i7', product_id: '8', product_name: 'Mineral Water 1.5L', quantity: 3, unit_price: 700, total: 2100 },
-      ],
-      subtotal: 5100,
-      delivery_fee: 500,
-      total: 5600,
-      delivery_address: 'Kigali, Gisozi, KG 201 St, Near BK Branch',
-      created_at: '2024-11-30T08:00:00Z',
-      updated_at: '2024-11-30T09:00:00Z',
-      packager: {
-        name: 'David Kayitare',
-        phone: '+250 788 999 000',
-        packed_at: '2024-11-30T09:30:00Z',
-      },
-      payment_method: 'Mobile Money (MTN)',
-      meter_id: 'MTR-005678',
-    },
-    {
-      id: '4',
-      order_number: 'ORD-2024-004',
-      status: 'pending',
-      retailer: {
-        id: 'ret_001',
-        name: 'Kigali Shop',
-        location: 'Kigali City Center, KN 78 St',
-        phone: '+250 788 123 456',
-      },
-      items: [
-        { id: 'i8', product_id: '9', product_name: 'Sugar 1kg', quantity: 2, unit_price: 1500, total: 3000 },
-        { id: 'i9', product_id: '10', product_name: 'Tea Leaves 250g', quantity: 1, unit_price: 2000, total: 2000 },
-      ],
-      subtotal: 5000,
-      delivery_fee: 500,
-      total: 5500,
-      delivery_address: 'Kigali, Kicukiro, KK 14 Ave',
-      created_at: '2024-12-01T10:00:00Z',
-      updated_at: '2024-12-01T10:00:00Z',
-      payment_method: 'Dashboard Balance',
-      meter_id: 'MTR-001234',
-    },
-    {
-      id: '5',
-      order_number: 'ORD-2024-005',
-      status: 'cancelled',
-      retailer: {
-        id: 'ret_002',
-        name: 'Nyamirambo Market',
-        location: 'Nyamirambo, Kigali',
-        phone: '+250 788 234 567',
-      },
-      items: [
-        { id: 'i10', product_id: '11', product_name: 'Potatoes 5kg', quantity: 1, unit_price: 5000, total: 5000 },
-      ],
-      subtotal: 5000,
-      delivery_fee: 500,
-      total: 5500,
-      delivery_address: 'Kigali, Nyamirambo, KG 20 St',
-      created_at: '2024-11-27T14:00:00Z',
-      updated_at: '2024-11-27T15:30:00Z',
-      cancellation_reason: 'Product out of stock, unable to fulfill order',
-      cancelled_by: 'retailer',
-      payment_method: 'Dashboard Balance',
-      meter_id: 'MTR-001234',
-    },
-    {
-      id: '6',
-      order_number: 'ORD-2024-006',
-      status: 'delivered',
-      retailer: {
-        id: 'ret_004',
-        name: 'Kigali Fresh Market',
-        location: 'Kimironko, Kigali',
-        phone: '+250 788 456 789',
-      },
-      items: [
-        { id: 'i11', product_id: '12', product_name: 'Beans 2kg', quantity: 2, unit_price: 3000, total: 6000 },
-        { id: 'i12', product_id: '13', product_name: 'Maize Flour 5kg', quantity: 1, unit_price: 7000, total: 7000 },
-      ],
-      subtotal: 13000,
-      delivery_fee: 500,
-      total: 13500,
-      delivery_address: 'Kigali, Remera, KG 7 Ave',
-      created_at: '2024-12-02T11:00:00Z',
-      updated_at: '2024-12-02T16:00:00Z',
-      payment_method: 'food_loan',
-      meter_id: 'N/A',
-      packager: {
-        name: 'Alice Uwera',
-        phone: '+250 788 222 333',
-        packed_at: '2024-12-02T12:00:00Z',
-      },
-      shipper: {
-        name: 'James Mugisha',
-        phone: '+250 788 444 555',
-        vehicle: 'RAC 789C (Motorcycle)',
-        shipped_at: '2024-12-02T14:00:00Z',
-      },
-    },
-    {
-      id: '7',
-      order_number: 'ORD-2024-007',
-      status: 'processing',
-      retailer: {
-        id: 'ret_003',
-        name: 'City Supermarket',
-        location: 'City Center, Kigali',
-        phone: '+250 788 567 890',
-      },
-      items: [
-        { id: 'i13', product_id: '14', product_name: 'Cooking Oil 2L', quantity: 3, unit_price: 5000, total: 15000 },
-        { id: 'i14', product_id: '15', product_name: 'Salt 1kg', quantity: 2, unit_price: 800, total: 1600 },
-      ],
-      subtotal: 16600,
-      delivery_fee: 800,
-      total: 17400,
-      delivery_address: 'Kigali, Kacyiru, KG 9 Ave',
-      created_at: '2024-12-03T09:00:00Z',
-      updated_at: '2024-12-03T10:00:00Z',
-      payment_method: 'food_loan',
-      meter_id: 'N/A',
-      packager: {
-        name: 'Emmanuel Nsengiyumva',
-        phone: '+250 788 666 777',
-        packed_at: '2024-12-03T10:30:00Z',
-      },
-    },
-  ];
+
 
   const formatPrice = (amount: number) => `${amount.toLocaleString()} RWF`;
 
@@ -401,14 +222,13 @@ export const OrdersPage: React.FC = () => {
   const handleConfirmCancel = async (values: any) => {
     setCancelling(true);
     try {
-      // TODO: Call API to cancel order
-      console.log('Cancelling order:', selectedOrder?.order_number, values);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await consumerApi.cancelOrder(selectedOrder!.id, values.reason);
       message.success('Order cancelled successfully');
       setShowCancelModal(false);
       fetchOrders();
-    } catch (error) {
-      message.error('Failed to cancel order');
+    } catch (error: any) {
+      console.error('Cancel order error:', error);
+      message.error(error.response?.data?.error || 'Failed to cancel order');
     } finally {
       setCancelling(false);
     }

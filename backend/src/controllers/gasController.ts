@@ -524,3 +524,65 @@ export const getOrderDetails = async (req: AuthRequest, res: Response) => {
         res.status(500).json({ success: false, error: error.message });
     }
 };
+
+// Cancel order
+export const cancelOrder = async (req: AuthRequest, res: Response) => {
+    try {
+        const userId = req.user!.id;
+        const { id } = req.params;
+        const { reason } = req.body;
+
+        const consumerProfile = await prisma.consumerProfile.findUnique({
+            where: { userId }
+        });
+
+        if (!consumerProfile) {
+            return res.status(404).json({ success: false, error: 'Customer profile not found' });
+        }
+
+        const order = await prisma.customerOrder.findFirst({
+            where: {
+                id,
+                consumerId: consumerProfile.id
+            }
+        });
+
+        if (!order) {
+            return res.status(404).json({ success: false, error: 'Order not found' });
+        }
+
+        // Only allow cancellation of active or pending orders
+        if (!['active', 'pending', 'confirmed', 'processing'].includes(order.status)) {
+            return res.status(400).json({
+                success: false,
+                error: `Cannot cancel order with status: ${order.status}`
+            });
+        }
+
+        // Update order status to cancelled
+        const updatedOrder = await prisma.customerOrder.update({
+            where: { id },
+            data: {
+                status: 'cancelled',
+                metadata: JSON.stringify({
+                    ...JSON.parse(order.metadata as string || '{}'),
+                    cancellationReason: reason || 'Cancelled by customer',
+                    cancelledBy: 'customer',
+                    cancelledAt: new Date().toISOString()
+                })
+            }
+        });
+
+        res.json({
+            success: true,
+            data: {
+                id: updatedOrder.id,
+                status: updatedOrder.status,
+                message: 'Order cancelled successfully'
+            }
+        });
+    } catch (error: any) {
+        console.error('Cancel order error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+};

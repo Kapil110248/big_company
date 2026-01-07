@@ -29,7 +29,8 @@ import {
   getGasRewardsHistory,
   getGasRewardsLeaderboard,
   getCustomerOrders,
-  getOrderDetails
+  getOrderDetails,
+  cancelOrder
 } from '../controllers/gasController';
 import { authenticate } from '../middleware/authMiddleware';
 
@@ -68,6 +69,7 @@ router.get('/gas/rewards/leaderboard', authenticate, getGasRewardsLeaderboard);
 // Protected routes - Orders
 router.get('/customers/me/orders', authenticate, getCustomerOrders);
 router.get('/orders/:id', authenticate, getOrderDetails);
+router.post('/orders/:id/cancel', authenticate, cancelOrder);
 
 // Legacy routes (keep for backward compatibility)
 router.get('/orders', authenticate, getMyOrders);

@@ -153,12 +153,15 @@ export const consumerApi = {
 
   // Orders
   getOrders: (params?: any) => api.get('/store/customers/me/orders', { params }),
-  getOrder: (id: string) => api.get(`/store/customers/me/orders/${id}`),
+  getOrder: (id: string) => api.get(`/store/orders/${id}`),
+  cancelOrder: (id: string, reason?: string) => api.post(`/store/orders/${id}/cancel`, { reason }),
   trackOrder: (id: string) => api.get(`/store/customers/me/orders/${id}/track`),
 
   // Wallet
-  getWallet: () => api.get('/store/wallet/balance'),
-  getWalletTransactions: (params?: any) => api.get('/store/wallet/transactions', { params }),
+  getWallets: () => api.get('/store/wallets'),
+  getWalletTransactions: (params?: any) => api.get('/store/wallets/transactions', { params }),
+  topupWallet: (data: { amount: number; payment_method: string }) => api.post('/store/wallets/topup', data),
+  requestRefund: (data: { amount: number; reason?: string }) => api.post('/store/wallets/refund-request', data),
 
   // Gas Service
   getGasMeters: () => api.get('/store/gas/meters'),
