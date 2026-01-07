@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   Card,
   Row,
@@ -80,6 +82,8 @@ interface ProfitInvoice {
 }
 
 export const MyManagementPage: React.FC = () => {
+  const navigate = useNavigate();
+  const { token } = useAuth();
   const [loading, setLoading] = useState(true);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [invoices, setInvoices] = useState<ProfitInvoice[]>([]);
@@ -98,115 +102,41 @@ export const MyManagementPage: React.FC = () => {
   const fetchManagementData = async () => {
     setLoading(true);
     try {
-      // In production, these would be actual API calls
-      // For now, using demo data
-      setSuppliers([
-        {
-          id: '1',
-          name: 'Bralirwa Ltd',
-          type: 'manufacturer',
-          contact_person: 'Jean Baptiste',
-          email: 'orders@bralirwa.rw',
-          phone: '+250788000001',
-          address: 'KK 15 Ave, Kigali Industrial Zone',
-          status: 'active',
-          payment_terms: 'Net 30',
-          total_orders: 156,
-          total_paid: 45000000,
-          outstanding_balance: 5000000,
-          products_supplied: 45,
-          created_at: '2023-01-15',
-        },
-        {
-          id: '2',
-          name: 'Inyange Industries',
-          type: 'manufacturer',
-          contact_person: 'Marie Rose',
-          email: 'sales@inyange.rw',
-          phone: '+250788000002',
-          address: 'Masaka Sector, Kicukiro',
-          status: 'active',
-          payment_terms: 'Net 15',
-          total_orders: 98,
-          total_paid: 32000000,
-          outstanding_balance: 3500000,
-          products_supplied: 28,
-          created_at: '2023-03-20',
-        },
-        {
-          id: '3',
-          name: 'SONAFRUITS Rwanda',
-          type: 'supplier',
-          contact_person: 'Emmanuel K.',
-          email: 'info@sonafruits.rw',
-          phone: '+250788000003',
-          address: 'Nyagatare District',
-          status: 'active',
-          payment_terms: 'Net 7',
-          total_orders: 67,
-          total_paid: 18000000,
-          outstanding_balance: 2800000,
-          products_supplied: 15,
-          created_at: '2023-06-10',
-        },
-        {
-          id: '4',
-          name: 'Rwanda Farmers Coffee',
-          type: 'manufacturer',
-          contact_person: 'Patrick N.',
-          email: 'coffee@rwandafarmers.rw',
-          phone: '+250788000004',
-          address: 'Huye District',
-          status: 'active',
-          payment_terms: 'Net 30',
-          total_orders: 34,
-          total_paid: 8500000,
-          outstanding_balance: 1200000,
-          products_supplied: 8,
-          created_at: '2023-09-01',
-        },
-      ]);
+      const authToken = token || localStorage.getItem('bigcompany_token');
 
-      setInvoices([
-        {
-          id: '1',
-          invoice_number: 'PROF-INV-2024-12',
-          period: 'December 2024',
-          gross_profit: 8500000,
-          monthly_expenses: 2100000,
-          net_profit: 6400000,
-          status: 'pending',
-          admin_notes: 'Monthly reconciliation pending',
-          created_at: '2024-12-01',
-          due_date: '2024-12-15',
-        },
-        {
-          id: '2',
-          invoice_number: 'PROF-INV-2024-11',
-          period: 'November 2024',
-          gross_profit: 7800000,
-          monthly_expenses: 1950000,
-          net_profit: 5850000,
-          status: 'paid',
-          created_at: '2024-11-01',
-          due_date: '2024-11-15',
-          paid_at: '2024-11-14',
-        },
-        {
-          id: '3',
-          invoice_number: 'PROF-INV-2024-10',
-          period: 'October 2024',
-          gross_profit: 9200000,
-          monthly_expenses: 2300000,
-          net_profit: 6900000,
-          status: 'paid',
-          created_at: '2024-10-01',
-          due_date: '2024-10-15',
-          paid_at: '2024-10-13',
-        },
-      ]);
+      // Fetch suppliers from real API
+      const suppliersResponse = await fetch('http://localhost:9000/wholesaler/management/suppliers', {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!suppliersResponse.ok) {
+        throw new Error('Failed to fetch suppliers');
+      }
+
+      const suppliersData = await suppliersResponse.json();
+      setSuppliers(suppliersData.suppliers || []);
+
+      // Fetch profit invoices from real API
+      const invoicesResponse = await fetch('http://localhost:9000/wholesaler/management/profit-invoices', {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!invoicesResponse.ok) {
+        throw new Error('Failed to fetch profit invoices');
+      }
+
+      const invoicesData = await invoicesResponse.json();
+      setInvoices(invoicesData.invoices || []);
+
     } catch (error) {
       console.error('Error fetching management data:', error);
+      message.error('Failed to load management data');
     } finally {
       setLoading(false);
     }
@@ -224,12 +154,29 @@ export const MyManagementPage: React.FC = () => {
 
   const handleAddSupplier = async (values: any) => {
     try {
-      console.log('Adding supplier:', values);
+      const authToken = token || localStorage.getItem('bigcompany_token');
+
+      const response = await fetch('http://localhost:9000/wholesaler/management/suppliers', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(values)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add supplier');
+      }
+
+      const data = await response.json();
+      console.log('Supplier added:', data);
       message.success('Supplier added successfully!');
       setAddSupplierModalOpen(false);
       form.resetFields();
       fetchManagementData();
     } catch (error) {
+      console.error('Error adding supplier:', error);
       message.error('Failed to add supplier');
     }
   };
