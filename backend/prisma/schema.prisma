@@ -103,10 +103,14 @@ model WholesalerSettings {
 model EmployeeProfile {
   id             String   @id @default(uuid())
   userId         String   @unique
-  user           User     @relation(fields: [userId], references: [id])
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   employeeNumber String   @unique
   department     String
   position       String
+  salary         Float    @default(0)
+  joiningDate    DateTime @default(now())
+  status         String   @default("active") // active, inactive, on_leave
+  bankAccount    String?
 }
 
 model ConsumerProfile {
@@ -424,4 +428,64 @@ model ProfitInvoice {
   profitAmount    Float
   invoiceNumber   String   @unique
   generatedAt     DateTime @default(now())
+}
+
+// ============================================
+// RECRUITMENT SYSTEM
+// ============================================
+
+model JobPosting {
+  id           String   @id @default(uuid())
+  title        String
+  department   String
+  type         String   // full_time, part_time, contract
+  salaryMin    Float
+  salaryMax    Float
+  location     String
+  description  String   @db.Text
+  status       String   @default("open") // open, closed
+  postedDate   DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  applications JobApplication[]
+}
+
+model JobApplication {
+  id          String     @id @default(uuid())
+  jobId       String
+  job         JobPosting @relation(fields: [jobId], references: [id])
+  name        String
+  email       String
+  phone       String
+  resumeUrl   String?
+  status      String     @default("applied") // applied, screening, interview, offer, hired, rejected
+  appliedDate DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+// ============================================
+// DEALS / SALES PIPELINE
+// ============================================
+
+model Deal {
+  id                String   @id @default(uuid())
+  title             String
+  clientName        String
+  value             Float
+  stage             String   // lead, qualified, proposal, negotiation, closed_won, closed_lost
+  probability       Float    // 0-100
+  owner             String   // Name of employee who owns this deal
+  expectedCloseDate DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

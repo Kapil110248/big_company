@@ -19,6 +19,7 @@ import {
   Statistic,
   Avatar,
   Dropdown,
+  Spin
 } from 'antd';
 import {
   TeamOutlined,
@@ -37,92 +38,36 @@ import dayjs from 'dayjs';
 const { Title, Text } = Typography;
 const { Option } = Select;
 
-interface Employee {
-  id: string;
-  employeeNumber: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  department: string;
-  position: string;
-  salary: number;
-  status: 'active' | 'inactive' | 'on_leave';
-  dateOfJoining: string;
-  reportingTo?: string;
-  bankAccount: string;
-}
+import { employeeService, Employee } from '../../services/employeeService';
 
 export const EmployeeManagementPage: React.FC = () => {
   const navigate = useNavigate();
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [form] = Form.useForm();
 
-  const employees: Employee[] = [
-    {
-      id: '1',
-      employeeNumber: 'EMP001',
-      firstName: 'John',
-      lastName: 'Employee',
-      email: 'employee@bigcompany.rw',
-      phone: '250788200001',
-      department: 'Sales',
-      position: 'Sales Representative',
-      salary: 850000,
-      status: 'active',
-      dateOfJoining: '2023-01-15',
-      reportingTo: 'Jane Manager',
-      bankAccount: '**** **** 1234',
-    },
-    {
-      id: '2',
-      employeeNumber: 'EMP002',
-      firstName: 'Sarah',
-      lastName: 'Johnson',
-      email: 'sarah.j@bigcompany.rw',
-      phone: '250788200002',
-      department: 'Marketing',
-      position: 'Marketing Manager',
-      salary: 1200000,
-      status: 'active',
-      dateOfJoining: '2022-06-01',
-      reportingTo: 'CEO',
-      bankAccount: '**** **** 5678',
-    },
-    {
-      id: '3',
-      employeeNumber: 'EMP003',
-      firstName: 'Michael',
-      lastName: 'Chen',
-      email: 'michael.c@bigcompany.rw',
-      phone: '250788200003',
-      department: 'IT',
-      position: 'Senior Developer',
-      salary: 1500000,
-      status: 'active',
-      dateOfJoining: '2021-03-10',
-      reportingTo: 'CTO',
-      bankAccount: '**** **** 9012',
-    },
-    {
-      id: '4',
-      employeeNumber: 'EMP004',
-      firstName: 'Emily',
-      lastName: 'Davis',
-      email: 'emily.d@bigcompany.rw',
-      phone: '250788200004',
-      department: 'HR',
-      position: 'HR Coordinator',
-      salary: 750000,
-      status: 'on_leave',
-      dateOfJoining: '2023-08-20',
-      reportingTo: 'HR Manager',
-      bankAccount: '**** **** 3456',
-    },
-  ];
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const fetchEmployees = async () => {
+    try {
+      setLoading(true);
+      const data = await employeeService.getEmployees();
+      setEmployees(data.employees);
+    } catch (error) {
+      message.error('Failed to fetch employees');
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchEmployees();
+  }, []);
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
@@ -151,13 +96,40 @@ export const EmployeeManagementPage: React.FC = () => {
 
   const handleAddEmployee = async (values: any) => {
     try {
-      console.log('Adding employee:', values);
-      message.success('Employee added successfully!');
+      console.log('Submitting employee:', values);
+      // Format date
+      const data = {
+        ...values,
+        dateOfJoining: values.dateOfJoining.format('YYYY-MM-DD'),
+      };
+
+      if (editingId) {
+        // Update existing
+        await employeeService.updateEmployee(editingId, data);
+        message.success('Employee updated successfully!');
+      } else {
+        // Create new
+        await employeeService.createEmployee(data);
+        message.success('Employee added successfully!');
+      }
+
       setShowAddModal(false);
+      setEditingId(null);
       form.resetFields();
-    } catch (error) {
-      message.error('Failed to add employee');
+      fetchEmployees(); // Refresh list
+    } catch (error: any) {
+      message.error(error.response?.data?.error || 'Failed to save employee');
     }
+  };
+
+  const handleEdit = (record: Employee) => {
+    setEditingId(record.id);
+    form.setFieldsValue({
+      ...record,
+      dateOfJoining: dayjs(record.dateOfJoining),
+      password: '', // Don't pre-fill password
+    });
+    setShowAddModal(true);
   };
 
   const handleDelete = (id: string) => {
@@ -166,8 +138,14 @@ export const EmployeeManagementPage: React.FC = () => {
       content: 'Are you sure you want to delete this employee? This action cannot be undone.',
       okText: 'Delete',
       okType: 'danger',
-      onOk: () => {
-        message.success('Employee deleted successfully');
+      onOk: async () => {
+        try {
+          await employeeService.deleteEmployee(id);
+          message.success('Employee deleted successfully');
+          fetchEmployees();
+        } catch (error) {
+          message.error('Failed to delete employee');
+        }
       },
     });
   };
@@ -252,6 +230,7 @@ export const EmployeeManagementPage: React.FC = () => {
                 key: 'edit',
                 icon: <EditOutlined />,
                 label: 'Edit',
+                onClick: () => handleEdit(record),
               },
               {
                 type: 'divider',
@@ -347,21 +326,36 @@ export const EmployeeManagementPage: React.FC = () => {
               <Option value="inactive">Inactive</Option>
               <Option value="on_leave">On Leave</Option>
             </Select>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setShowAddModal(true)}>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setEditingId(null);
+                form.resetFields();
+                setShowAddModal(true);
+              }}
+            >
               Add Employee
             </Button>
           </Space>
         }
       >
-        <Table dataSource={filteredEmployees} columns={columns} rowKey="id" pagination={{ pageSize: 10 }} />
+        <Table
+          dataSource={filteredEmployees}
+          columns={columns}
+          rowKey="id"
+          pagination={{ pageSize: 10 }}
+          loading={loading}
+        />
       </Card>
 
-      {/* Add Employee Modal */}
+      {/* Add/Edit Employee Modal */}
       <Modal
-        title="Add New Employee"
+        title={editingId ? "Edit Employee" : "Add New Employee"}
         open={showAddModal}
         onCancel={() => {
           setShowAddModal(false);
+          setEditingId(null);
           form.resetFields();
         }}
         footer={null}
@@ -416,6 +410,30 @@ export const EmployeeManagementPage: React.FC = () => {
                 />
               </Form.Item>
             </Col>
+
+            {/* Status - Only show when editing, or default to active */}
+            <Col span={12}>
+              <Form.Item name="status" label="Status" initialValue="active">
+                <Select size="large">
+                  <Option value="active">Active</Option>
+                  <Option value="inactive">Inactive</Option>
+                  <Option value="on_leave">On Leave</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+
+            <Col span={12}>
+              <Form.Item
+                name="password"
+                label={editingId ? "Reset Password (Optional)" : "Password"}
+                rules={[
+                  { required: !editingId, message: 'Please enter a password' },
+                  { min: 6, message: 'Password must be at least 6 characters' }
+                ]}
+              >
+                <Input.Password size="large" placeholder={editingId ? "Leave blank to keep unchanged" : "Login Password"} />
+              </Form.Item>
+            </Col>
             <Col span={12}>
               <Form.Item name="dateOfJoining" label="Date of Joining" rules={[{ required: true }]}>
                 <DatePicker style={{ width: '100%' }} size="large" />
@@ -433,13 +451,14 @@ export const EmployeeManagementPage: React.FC = () => {
               <Button
                 onClick={() => {
                   setShowAddModal(false);
+                  setEditingId(null);
                   form.resetFields();
                 }}
               >
                 Cancel
               </Button>
               <Button type="primary" htmlType="submit">
-                Add Employee
+                {editingId ? "Update Employee" : "Add Employee"}
               </Button>
             </Space>
           </Form.Item>

@@ -1,344 +1,318 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Box,
-  Button,
   Card,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  IconButton,
   Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
+  Button,
+  Space,
+  Tag,
+  Modal,
+  Form,
+  Input,
+  message,
   Typography,
-  Chip,
-  Alert,
-  CircularProgress,
-  Paper,
-  InputAdornment,
-  Stack,
-  Tooltip,
+  Row,
+  Col,
   Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-} from '@mui/material';
+} from 'antd';
 import {
-  Edit as EditIcon,
-  Block as BlockIcon,
-  CheckCircle as CheckCircleIcon,
-  Search as SearchIcon,
-  Person as PersonIcon,
-  Phone as PhoneIcon,
-  Email as EmailIcon,
-  LocationOn as LocationIcon,
-} from '@mui/icons-material';
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  UserOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+} from '@ant-design/icons';
+import type { ColumnsType } from 'antd/es/table';
 import { adminApi } from '../../services/apiService';
 
+const { Title, Text } = Typography;
+const { Option } = Select;
+
 interface Customer {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  phone: string;
-  has_account: boolean;
-  status: 'active' | 'inactive';
-  total_orders: number;
-  total_spent: number;
-  created_at: string;
+  id: string; // ConsumerProfile ID
+  fullName: string | null;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    isActive: boolean;
+  };
 }
 
 const CustomerManagementPage: React.FC = () => {
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [error, setError] = useState<string>('');
-  const [success, setSuccess] = useState<string>('');
-  const [detailsDialog, setDetailsDialog] = useState<Customer | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form] = Form.useForm();
+  const [searchText, setSearchText] = useState('');
 
   useEffect(() => {
-    fetchCustomers();
-  }, [statusFilter]);
+    loadCustomers();
+  }, []);
 
-  const fetchCustomers = async () => {
+  const loadCustomers = async () => {
     setLoading(true);
     try {
-      const response = await adminApi.getCustomers({
-        status: statusFilter === 'all' ? undefined : statusFilter,
-      });
-
-      if (response.data.success) {
-        setCustomers(response.data.customers || []);
+      const response = await adminApi.getCustomers();
+      if (response.data?.customers) {
+        setCustomers(response.data.customers);
       }
-    } catch (err: any) {
-      console.error('Error fetching customers:', err);
-      setError('Failed to load customers. Using mock data.');
+    } catch (error: any) {
+      console.error('Failed to load customers:', error);
+      message.error('Failed to load customers');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleStatusChange = async (customerId: string, newStatus: string) => {
+  const handleSave = async (values: any) => {
     try {
-      await adminApi.updateCustomerStatus(customerId, { status: newStatus });
-
-      setSuccess(`Customer status updated to ${newStatus}`);
-      fetchCustomers();
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err: any) {
-      console.error('Error updating status:', err);
-      setError(err.response?.data?.error || 'Failed to update status');
+      setLoading(true);
+      if (editingId) {
+        await adminApi.updateCustomer(editingId, values);
+        message.success('Customer updated successfully');
+      } else {
+        await adminApi.createCustomer(values);
+        message.success('Customer created successfully');
+      }
+      setModalVisible(false);
+      form.resetFields();
+      setEditingId(null);
+      loadCustomers();
+    } catch (error: any) {
+      message.error(error.response?.data?.error || 'Failed to save customer');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const filteredCustomers = customers.filter(
-    (customer) =>
-      customer.first_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      customer.last_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      customer.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      customer.phone?.includes(searchQuery)
-  );
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'success';
-      case 'inactive':
-        return 'default';
-      default:
-        return 'default';
-    }
+  const handleEdit = (record: Customer) => {
+    // Flatten data for form
+    // Priority: ConsumerProfile.fullName -> User.name
+    const displayName = record.fullName || record.user?.name || '';
+    const [firstName, ...lastNameParts] = displayName.split(' ');
+    const lastName = lastNameParts.join(' ');
+
+    setEditingId(record.id);
+    form.setFieldsValue({
+      firstName,
+      lastName,
+      email: record.user?.email,
+      phone: record.user?.phone,
+      status: record.user?.isActive ? 'active' : 'inactive'
+    });
+    setModalVisible(true);
   };
+
+  const handleDelete = (id: string, name: string) => {
+    Modal.confirm({
+      title: 'Delete Customer',
+      content: `Are you sure you want to delete ${name}? This will delete their account and profile.`,
+      okText: 'Delete',
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          await adminApi.deleteCustomer(id);
+          message.success('Customer deleted successfully');
+          loadCustomers();
+        } catch (error: any) {
+          message.error('Failed to delete customer');
+        }
+      },
+    });
+  };
+
+  const filteredCustomers = customers.filter(c => {
+    const name = c.fullName || c.user?.name || '';
+    const email = c.user?.email || '';
+    const phone = c.user?.phone || '';
+    return (
+      name.toLowerCase().includes(searchText.toLowerCase()) ||
+      email.toLowerCase().includes(searchText.toLowerCase()) ||
+      phone.includes(searchText)
+    );
+  });
+
+  const columns: ColumnsType<Customer> = [
+    {
+      title: 'Name',
+      key: 'name',
+      render: (_, record) => (
+        <Space>
+          <UserOutlined />
+          <strong>{record.fullName || record.user?.name || 'N/A'}</strong>
+        </Space>
+      ),
+    },
+    {
+      title: 'Email',
+      key: 'email',
+      render: (_, record) => record.user?.email || 'N/A',
+    },
+    {
+      title: 'Phone',
+      key: 'phone',
+      render: (_, record) => record.user?.phone || 'N/A',
+    },
+    {
+      title: 'Status',
+      key: 'isActive',
+      render: (_, record) => (
+        <Tag color={record.user?.isActive ? 'green' : 'red'}>
+          {record.user?.isActive ? 'ACTIVE' : 'INACTIVE'}
+        </Tag>
+      ),
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_, record) => (
+        <Space>
+          <Button
+            type="link"
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => handleEdit(record)}
+          >
+            Edit
+          </Button>
+          <Button
+            type="link"
+            danger
+            size="small"
+            icon={<DeleteOutlined />}
+            onClick={() => handleDelete(record.id || '', record.fullName || record.user?.name || 'Customer')}
+          >
+            Delete
+          </Button>
+        </Space>
+      ),
+    },
+  ];
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" component="h1">
-          <PersonIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-          Customer Management
-        </Typography>
-      </Stack>
+    <div>
+      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <Title level={2} style={{ margin: 0 }}>Customer Management</Title>
+          <Text type="secondary">Manage consumer accounts</Text>
+        </div>
+        <Space>
+          <Button icon={<ReloadOutlined />} onClick={loadCustomers}>Refresh</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => {
+            setEditingId(null);
+            form.resetFields();
+            setModalVisible(true);
+          }}>
+            Add Customer
+          </Button>
+        </Space>
+      </div>
 
-      {error && (
-        <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
-
-      {success && (
-        <Alert severity="success" onClose={() => setSuccess('')} sx={{ mb: 2 }}>
-          {success}
-        </Alert>
-      )}
-
-      <Card sx={{ mb: 3, p: 2 }}>
-        <Stack direction="row" spacing={2}>
-          <TextField
-            placeholder="Search customers..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-            }}
-            sx={{ flex: 1 }}
+      <Card>
+        <div style={{ marginBottom: 16 }}>
+          <Input
+            prefix={<SearchOutlined />}
+            placeholder="Search by name, email, or phone"
+            style={{ width: 300 }}
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
           />
-          <FormControl sx={{ minWidth: 150 }}>
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={statusFilter}
-              label="Status"
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <MenuItem value="all">All Status</MenuItem>
-              <MenuItem value="active">Active</MenuItem>
-              <MenuItem value="inactive">Inactive</MenuItem>
-            </Select>
-          </FormControl>
-        </Stack>
+        </div>
+        <Table
+          columns={columns}
+          dataSource={filteredCustomers}
+          rowKey="id" // User ID
+          loading={loading}
+          pagination={{ pageSize: 10 }}
+        />
       </Card>
 
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-              <TableCell><strong>Customer Name</strong></TableCell>
-              <TableCell><strong>Contact</strong></TableCell>
-              <TableCell><strong>Account Status</strong></TableCell>
-              <TableCell><strong>Orders</strong></TableCell>
-              <TableCell><strong>Total Spent</strong></TableCell>
-              <TableCell><strong>Status</strong></TableCell>
-              <TableCell><strong>Actions</strong></TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={7} align="center">
-                  <CircularProgress />
-                </TableCell>
-              </TableRow>
-            ) : filteredCustomers.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} align="center">
-                  <Typography color="textSecondary">No customers found</Typography>
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredCustomers.map((customer) => (
-                <TableRow key={customer.id} hover>
-                  <TableCell>
-                    <Typography variant="body2" fontWeight="bold">
-                      {customer.first_name} {customer.last_name}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Stack spacing={0.5}>
-                      <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center' }}>
-                        <PhoneIcon fontSize="small" sx={{ mr: 0.5 }} />
-                        {customer.phone}
-                      </Typography>
-                      {customer.email && (
-                        <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center' }}>
-                          <EmailIcon fontSize="small" sx={{ mr: 0.5 }} />
-                          {customer.email}
-                        </Typography>
-                      )}
-                    </Stack>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={customer.has_account ? 'Registered' : 'Guest'}
-                      color={customer.has_account ? 'primary' : 'default'}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell>{customer.total_orders}</TableCell>
-                  <TableCell>{customer.total_spent.toLocaleString()} RWF</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={customer.status}
-                      color={getStatusColor(customer.status) as any}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Stack direction="row" spacing={1}>
-                      <Tooltip title="View Details">
-                        <IconButton
-                          size="small"
-                          onClick={() => setDetailsDialog(customer)}
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      {customer.status === 'active' ? (
-                        <Tooltip title="Deactivate">
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => handleStatusChange(customer.id, 'inactive')}
-                          >
-                            <BlockIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      ) : (
-                        <Tooltip title="Activate">
-                          <IconButton
-                            size="small"
-                            color="success"
-                            onClick={() => handleStatusChange(customer.id, 'active')}
-                          >
-                            <CheckCircleIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                    </Stack>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      {/* Details Dialog */}
-      <Dialog open={!!detailsDialog} onClose={() => setDetailsDialog(null)} maxWidth="md" fullWidth>
-        <DialogTitle>Customer Details</DialogTitle>
-        <DialogContent>
-          {detailsDialog && (
-            <Stack spacing={2} sx={{ mt: 2 }}>
-              <TextField
+      <Modal
+        title={editingId ? 'Edit Customer' : 'Add Customer'}
+        open={modalVisible}
+        onCancel={() => {
+          setModalVisible(false);
+          form.resetFields();
+          setEditingId(null);
+        }}
+        footer={null}
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={handleSave}
+        >
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="firstName"
                 label="First Name"
-                value={detailsDialog.first_name}
-                fullWidth
-                InputProps={{ readOnly: true }}
-              />
-              <TextField
+                rules={[{ required: true, message: 'Required' }]}
+              >
+                <Input placeholder="John" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="lastName"
                 label="Last Name"
-                value={detailsDialog.last_name}
-                fullWidth
-                InputProps={{ readOnly: true }}
-              />
-              <TextField
-                label="Phone"
-                value={detailsDialog.phone}
-                fullWidth
-                InputProps={{ readOnly: true }}
-              />
-              <TextField
-                label="Email"
-                value={detailsDialog.email || 'N/A'}
-                fullWidth
-                InputProps={{ readOnly: true }}
-              />
-              <TextField
-                label="Account Type"
-                value={detailsDialog.has_account ? 'Registered Customer' : 'Guest Customer'}
-                fullWidth
-                InputProps={{ readOnly: true }}
-              />
-              <TextField
-                label="Total Orders"
-                value={detailsDialog.total_orders}
-                fullWidth
-                InputProps={{ readOnly: true }}
-              />
-              <TextField
-                label="Total Spent"
-                value={`${detailsDialog.total_spent.toLocaleString()} RWF`}
-                fullWidth
-                InputProps={{ readOnly: true }}
-              />
-              <TextField
-                label="Status"
-                value={detailsDialog.status}
-                fullWidth
-                InputProps={{ readOnly: true }}
-              />
-              <TextField
-                label="Customer Since"
-                value={new Date(detailsDialog.created_at).toLocaleDateString()}
-                fullWidth
-                InputProps={{ readOnly: true }}
-              />
-            </Stack>
+                rules={[{ required: true, message: 'Required' }]}
+              >
+                <Input placeholder="Doe" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item
+            name="email"
+            label="Email"
+            rules={[{ required: true, type: 'email' }]}
+          >
+            <Input placeholder="john@example.com" />
+          </Form.Item>
+
+          <Form.Item
+            name="phone"
+            label="Phone"
+            rules={[{ required: true }]}
+          >
+            <Input placeholder="+250..." />
+          </Form.Item>
+
+          {!editingId && (
+            <Form.Item
+              name="password"
+              label="Password"
+              rules={[{ required: true, min: 6 }]}
+            >
+              <Input.Password placeholder="******" />
+            </Form.Item>
           )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDetailsDialog(null)}>Close</Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+
+          {editingId && (
+            <Form.Item name="status" label="Status" initialValue="active">
+              <Select>
+                <Option value="active">Active</Option>
+                <Option value="inactive">Inactive</Option>
+              </Select>
+            </Form.Item>
+          )}
+
+          <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
+            <Space>
+              <Button onClick={() => setModalVisible(false)}>Cancel</Button>
+              <Button type="primary" htmlType="submit" loading={loading}>
+                {editingId ? 'Update' : 'Create'}
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+    </div>
   );
 };
 

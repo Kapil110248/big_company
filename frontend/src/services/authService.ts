@@ -57,6 +57,7 @@ export const authService = {
       payload = {
         email: credentials.email || '',
         password: credentials.password || '',
+        role: role
       };
     }
 

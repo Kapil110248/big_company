@@ -38,6 +38,7 @@ import {
   GlobalOutlined,
   ApiOutlined,
 } from '@ant-design/icons';
+import { retailerApi } from '../../services/apiService';
 import { useAuth } from '../../contexts/AuthContext';
 import { wholesalerApi, authApi } from '../../services/apiService';
 import { useEffect } from 'react';
@@ -46,7 +47,7 @@ const { Title, Text, Paragraph } = Typography;
 const { TabPane } = Tabs;
 
 export const ProfileSettingsPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, login } = useAuth(); // Assuming login or setUser can update context, but maybe just re-fetch is enough.
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [profileForm] = Form.useForm();
@@ -117,6 +118,7 @@ export const ProfileSettingsPage: React.FC = () => {
         setEditing(false);
       }
     } catch (error) {
+      console.error(error);
       message.error('Failed to update profile');
     } finally {
       setLoading(false);

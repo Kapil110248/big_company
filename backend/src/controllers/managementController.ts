@@ -107,7 +107,7 @@ export const getManagementSuppliers = async (req: AuthRequest, res: Response) =>
         const suppliers = await prisma.supplier.findMany({
             where: {
                 wholesalerId: (wholesalerProfile as any).id
-            },
+            } as any,
             include: {
                 products: true,
                 payments: {
@@ -175,7 +175,7 @@ export const getSupplierDetails = async (req: AuthRequest, res: Response) => {
             where: {
                 id,
                 wholesalerId: (wholesalerProfile as any).id
-            },
+            } as any,
             include: {
                 products: true,
                 payments: {
@@ -259,7 +259,7 @@ export const createSupplier = async (req: AuthRequest, res: Response) => {
                 address,
                 status: 'active',
                 wholesalerId: wholesalerProfile.id
-            }
+            } as any
         });
 
         console.log('✅ Supplier created:', supplier.id);

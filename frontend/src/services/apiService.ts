@@ -194,8 +194,13 @@ export const consumerApi = {
 
 // Retailer APIs
 export const retailerApi = {
-  // Dashboard
-  getDashboardStats: () => api.get('/retailer/dashboard/stats'),
+  // Profile
+  getProfile: () => api.get('/retailer/profile'),
+  updateProfile: (data: any) => api.put('/retailer/profile', data),
+
+  // Dashboard & Analytics
+  getDashboardStats: () => api.get('/retailer/dashboard'),
+  getAnalytics: (params?: any) => api.get('/retailer/analytics', { params }),
 
   // Inventory
   getInventory: (params?: any) => api.get('/retailer/inventory', { params }),
@@ -227,7 +232,7 @@ export const retailerApi = {
 
   // Wallet & Credit
   getWallet: () => api.get('/retailer/wallet'),
-  getWalletBalance: () => api.get('/retailer/wallet/balance'),
+  getWalletBalance: () => api.get('/retailer/wallet'), // Mapped to /retailer/wallet as it returns balance
   getWalletTransactions: (params?: any) => api.get('/retailer/wallet/transactions', { params }),
   getCreditInfo: () => api.get('/retailer/credit'),
   getCreditOrders: (params?: any) => api.get('/retailer/credit/orders', { params }),
@@ -235,6 +240,7 @@ export const retailerApi = {
   requestCredit: (data: any) => api.post('/retailer/credit/request', data),
   makeRepayment: (orderId: string, amount: number) =>
     api.post(`/retailer/credit/orders/${orderId}/repay`, { amount }),
+  topUpWallet: (amount: number, source: string) => api.post('/retailer/wallet/topup', { amount, source }),
 
   // Wholesalers & Stock
   getWholesalers: () => api.get('/retailer/wholesalers'),
@@ -425,21 +431,25 @@ export const adminApi = {
   // Customers
   getCustomers: (params?: any) => api.get('/admin/customers', { params }),
   getCustomer: (id: string) => api.get(`/admin/customers/${id}`),
+  createCustomer: (data: any) => api.post('/admin/customers', data),
+  updateCustomer: (id: string, data: any) => api.put(`/admin/customers/${id}`, data),
+  deleteCustomer: (id: string) => api.delete(`/admin/customers/${id}`),
   creditCustomer: (id: string, amount: number, reason: string) =>
     api.post(`/admin/customers/${id}/credit`, { amount, reason }),
   updateCustomerStatus: (id: string, data: { status: string }) =>
     api.put(`/admin/customers/${id}/status`, data),
 
+  // Categories
+  getCategories: () => api.get('/admin/categories'),
+  createCategory: (data: any) => api.post('/admin/categories', data),
+  updateCategory: (id: string, data: any) => api.put(`/admin/categories/${id}`, data),
+  deleteCategory: (id: string) => api.delete(`/admin/categories/${id}`),
+
   // Retailers
   getRetailers: (params?: any) => api.get('/admin/retailers', { params }),
-  createRetailer: (data: {
-    email: string;
-    password: string;
-    business_name: string;
-    phone: string;
-    address?: string;
-    credit_limit?: number;
-  }) => api.post('/admin/accounts/create-retailer', data),
+  createRetailer: (data: any) => api.post('/admin/retailers', data), // Fixed endpoint
+  updateRetailer: (id: string, data: any) => api.put(`/admin/retailers/${id}`, data),
+  deleteRetailer: (id: string) => api.delete(`/admin/retailers/${id}`),
   verifyRetailer: (id: string) => api.post(`/admin/retailers/${id}/verify`),
   updateRetailerStatus: (id: string, isActive: boolean, reason?: string) =>
     api.post(`/admin/retailers/${id}/status`, { isActive, reason }),
@@ -448,13 +458,9 @@ export const adminApi = {
 
   // Wholesalers
   getWholesalers: (params?: any) => api.get('/admin/wholesalers', { params }),
-  createWholesaler: (data: {
-    email: string;
-    password: string;
-    company_name: string;
-    phone: string;
-    address?: string;
-  }) => api.post('/admin/accounts/create-wholesaler', data),
+  createWholesaler: (data: any) => api.post('/admin/wholesalers', data), // Fixed endpoint
+  updateWholesaler: (id: string, data: any) => api.put(`/admin/wholesalers/${id}`, data),
+  deleteWholesaler: (id: string) => api.delete(`/admin/wholesalers/${id}`),
   verifyWholesaler: (id: string) => api.post(`/admin/wholesalers/${id}/verify`),
   updateWholesalerStatus: (id: string, isActive: boolean, reason?: string) =>
     api.post(`/admin/wholesalers/${id}/status`, { isActive, reason }),

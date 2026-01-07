@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   Row,
@@ -18,6 +18,7 @@ import {
   Tabs,
   List,
   Avatar,
+  Popconfirm
 } from 'antd';
 import {
   TeamOutlined,
@@ -27,136 +28,58 @@ import {
   UserAddOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
-  CloseCircleOutlined,
+  DeleteOutlined,
+  EditOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { recruitmentService, JobPosting, Applicant } from '../../services/recruitmentService';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { Option } = Select;
 const { TabPane } = Tabs;
-
-interface JobPosting {
-  id: string;
-  title: string;
-  department: string;
-  type: 'full_time' | 'part_time' | 'contract';
-  salary: { min: number; max: number };
-  location: string;
-  description: string;
-  requirements: string[];
-  status: 'open' | 'closed';
-  applicants: number;
-  postedDate: string;
-}
-
-interface Applicant {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  jobId: string;
-  jobTitle: string;
-  status: 'applied' | 'screening' | 'interview' | 'offer' | 'hired' | 'rejected';
-  appliedDate: string;
-  resume: string;
-}
 
 export const RecruitmentPage: React.FC = () => {
   const [showJobModal, setShowJobModal] = useState(false);
   const [form] = Form.useForm();
 
-  const jobPostings: JobPosting[] = [
-    {
-      id: '1',
-      title: 'Senior Software Engineer',
-      department: 'IT',
-      type: 'full_time',
-      salary: { min: 1500000, max: 2000000 },
-      location: 'Kigali, Rwanda',
-      description: 'We are looking for an experienced software engineer to join our development team.',
-      requirements: ['5+ years experience', 'React expertise', 'TypeScript proficiency'],
-      status: 'open',
-      applicants: 15,
-      postedDate: '2025-11-20',
-    },
-    {
-      id: '2',
-      title: 'Sales Representative',
-      department: 'Sales',
-      type: 'full_time',
-      salary: { min: 700000, max: 1000000 },
-      location: 'Kigali, Rwanda',
-      description: 'Join our sales team and help grow our customer base.',
-      requirements: ['2+ years sales experience', 'Excellent communication', 'Target-driven'],
-      status: 'open',
-      applicants: 28,
-      postedDate: '2025-11-15',
-    },
-    {
-      id: '3',
-      title: 'Marketing Manager',
-      department: 'Marketing',
-      type: 'full_time',
-      salary: { min: 1200000, max: 1500000 },
-      location: 'Kigali, Rwanda',
-      description: 'Lead our marketing initiatives and brand strategy.',
-      requirements: ['5+ years marketing experience', 'Team management', 'Digital marketing'],
-      status: 'closed',
-      applicants: 42,
-      postedDate: '2025-10-01',
-    },
-  ];
+  const [jobs, setJobs] = useState<JobPosting[]>([]);
+  const [applicants, setApplicants] = useState<Applicant[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [editingJobId, setEditingJobId] = useState<string | null>(null);
 
-  const applicants: Applicant[] = [
-    {
-      id: '1',
-      name: 'Alice Williams',
-      email: 'alice.w@email.com',
-      phone: '250788300001',
-      jobId: '1',
-      jobTitle: 'Senior Software Engineer',
-      status: 'interview',
-      appliedDate: '2025-11-25',
-      resume: '/resumes/alice-williams.pdf',
-    },
-    {
-      id: '2',
-      name: 'Bob Anderson',
-      email: 'bob.a@email.com',
-      phone: '250788300002',
-      jobId: '1',
-      jobTitle: 'Senior Software Engineer',
-      status: 'screening',
-      appliedDate: '2025-11-28',
-      resume: '/resumes/bob-anderson.pdf',
-    },
-    {
-      id: '3',
-      name: 'Carol Martinez',
-      email: 'carol.m@email.com',
-      phone: '250788300003',
-      jobId: '2',
-      jobTitle: 'Sales Representative',
-      status: 'offer',
-      appliedDate: '2025-11-20',
-      resume: '/resumes/carol-martinez.pdf',
-    },
-  ];
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const jobsData = await recruitmentService.getJobs();
+      setJobs(jobsData.jobs);
 
-  const openPositions = jobPostings.filter((j) => j.status === 'open').length;
+      const appsData = await recruitmentService.getApplications();
+      setApplicants(appsData.applications);
+    } catch (error) {
+      message.error('Failed to load recruitment data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const openPositions = jobs.filter((j) => j.status === 'open').length;
   const totalApplicants = applicants.length;
   const inInterview = applicants.filter((a) => a.status === 'interview').length;
-  const pendingReview = applicants.filter((a) => a.status === 'screening').length;
+  const pendingReview = applicants.filter((a) => a.status === 'screening' || a.status === 'applied').length;
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       open: 'success',
       closed: 'default',
       applied: 'processing',
-      screening: 'processing',
+      screening: 'purple',
       interview: 'warning',
-      offer: 'success',
+      offer: 'cyan',
       hired: 'success',
       rejected: 'error',
     };
@@ -165,13 +88,37 @@ export const RecruitmentPage: React.FC = () => {
 
   const handleCreateJob = async (values: any) => {
     try {
-      console.log('Creating job:', values);
-      message.success('Job posting created successfully!');
+      if (editingJobId) {
+        await recruitmentService.updateJob(editingJobId, values);
+        message.success('Job updated successfully');
+      } else {
+        await recruitmentService.createJob(values);
+        message.success('Job posting created successfully!');
+      }
       setShowJobModal(false);
+      setEditingJobId(null);
       form.resetFields();
+      fetchData();
     } catch (error) {
-      message.error('Failed to create job posting');
+      message.error('Failed to save job posting');
     }
+  };
+
+  const handleDeleteJob = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // prevent viewing details if row click
+    try {
+      await recruitmentService.deleteJob(id);
+      message.success('Job deleted');
+      fetchData();
+    } catch (error) {
+      message.error('Failed to delete job');
+    }
+  };
+
+  const handleEditJob = (record: JobPosting) => {
+    setEditingJobId(record.id);
+    form.setFieldsValue(record);
+    setShowJobModal(true);
   };
 
   const jobColumns = [
@@ -201,13 +148,13 @@ export const RecruitmentPage: React.FC = () => {
       title: 'Salary Range',
       key: 'salary',
       render: (_: any, record: JobPosting) =>
-        `${record.salary.min.toLocaleString()} - ${record.salary.max.toLocaleString()} RWF`,
+        `${record.salaryMin.toLocaleString()} - ${record.salaryMax.toLocaleString()} RWF`,
     },
     {
       title: 'Applicants',
-      dataIndex: 'applicants',
+      dataIndex: ['_count', 'applications'],
       key: 'applicants',
-      render: (count: number) => <Text strong>{count}</Text>,
+      render: (count: number) => <Text strong>{count || 0}</Text>,
     },
     {
       title: 'Status',
@@ -224,11 +171,12 @@ export const RecruitmentPage: React.FC = () => {
     {
       title: 'Actions',
       key: 'actions',
-      render: () => (
+      render: (_: any, record: JobPosting) => (
         <Space>
-          <Button type="link" icon={<EyeOutlined />}>
-            View
-          </Button>
+          <Button type="link" icon={<EditOutlined />} onClick={() => handleEditJob(record)} />
+          <Popconfirm title="Delete job?" onConfirm={(e) => handleDeleteJob(record.id, e!)}>
+            <Button type="link" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
         </Space>
       ),
     },
@@ -289,21 +237,36 @@ export const RecruitmentPage: React.FC = () => {
         <Tabs defaultActiveKey="1">
           <TabPane tab="Job Postings" key="1">
             <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'flex-end' }}>
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => setShowJobModal(true)}>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  setEditingJobId(null);
+                  form.resetFields();
+                  setShowJobModal(true);
+                }}
+              >
                 Create Job Posting
               </Button>
             </Space>
-            <Table dataSource={jobPostings} columns={jobColumns} rowKey="id" pagination={false} />
+            <Table
+              dataSource={jobs}
+              columns={jobColumns}
+              rowKey="id"
+              pagination={{ pageSize: 10 }}
+              loading={loading}
+            />
           </TabPane>
 
           <TabPane tab="Applicants" key="2">
             <List
               dataSource={applicants}
+              loading={loading}
               renderItem={(applicant) => (
                 <List.Item
                   actions={[
                     <Button type="link" icon={<EyeOutlined />}>
-                      View Application
+                      View
                     </Button>,
                   ]}
                 >
@@ -312,7 +275,7 @@ export const RecruitmentPage: React.FC = () => {
                     title={<Text strong>{applicant.name}</Text>}
                     description={
                       <Space direction="vertical">
-                        <Text type="secondary">{applicant.jobTitle}</Text>
+                        <Text type="secondary">Applied for: {applicant.job?.title || 'Unknown Job'}</Text>
                         <Space>
                           <Text type="secondary">{applicant.email}</Text>
                           <Text type="secondary">•</Text>
@@ -336,12 +299,13 @@ export const RecruitmentPage: React.FC = () => {
         </Tabs>
       </Card>
 
-      {/* Create Job Modal */}
+      {/* Create/Edit Job Modal */}
       <Modal
-        title="Create Job Posting"
+        title={editingJobId ? "Edit Job Posting" : "Create Job Posting"}
         open={showJobModal}
         onCancel={() => {
           setShowJobModal(false);
+          setEditingJobId(null);
           form.resetFields();
         }}
         footer={null}
@@ -404,6 +368,16 @@ export const RecruitmentPage: React.FC = () => {
             <Input size="large" placeholder="e.g., Kigali, Rwanda" />
           </Form.Item>
 
+          {/* Status (only for edit) */}
+          {editingJobId && (
+            <Form.Item name="status" label="Status">
+              <Select>
+                <Option value="open">Open</Option>
+                <Option value="closed">Closed</Option>
+              </Select>
+            </Form.Item>
+          )}
+
           <Form.Item name="description" label="Job Description" rules={[{ required: true }]}>
             <TextArea rows={4} placeholder="Describe the role and responsibilities" />
           </Form.Item>
@@ -413,13 +387,14 @@ export const RecruitmentPage: React.FC = () => {
               <Button
                 onClick={() => {
                   setShowJobModal(false);
+                  setEditingJobId(null);
                   form.resetFields();
                 }}
               >
                 Cancel
               </Button>
               <Button type="primary" htmlType="submit">
-                Create Job Posting
+                {editingJobId ? "Update Job" : "Create Job Posting"}
               </Button>
             </Space>
           </Form.Item>

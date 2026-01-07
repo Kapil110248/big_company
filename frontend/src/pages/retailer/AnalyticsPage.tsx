@@ -64,59 +64,11 @@ export const AnalyticsPage: React.FC = () => {
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      const response = await retailerApi.getDashboardStats();
-      // Transform API response to analytics format
-      setData({
-        revenue: {
-          total: response.data.totalRevenue || 8500000,
-          change: 15.2,
-          daily: [
-            { date: '2024-11-24', amount: 320000 },
-            { date: '2024-11-25', amount: 450000 },
-            { date: '2024-11-26', amount: 380000 },
-            { date: '2024-11-27', amount: 520000 },
-            { date: '2024-11-28', amount: 480000 },
-            { date: '2024-11-29', amount: 610000 },
-            { date: '2024-11-30', amount: 550000 },
-          ],
-        },
-        sales: {
-          total: response.data.totalSales || 342,
-          change: 12.8,
-          byCategory: [
-            { category: 'Beverages', count: 89, revenue: 890000 },
-            { category: 'Food & Snacks', count: 124, revenue: 1240000 },
-            { category: 'Household', count: 67, revenue: 670000 },
-            { category: 'Personal Care', count: 42, revenue: 420000 },
-            { category: 'Other', count: 20, revenue: 200000 },
-          ],
-        },
-        products: {
-          total: response.data.totalProducts || 156,
-          lowStock: response.data.lowStockItems || 8,
-          topSelling: [
-            { name: 'Inyange Milk 1L', quantity: 145, revenue: 130500 },
-            { name: 'Bralirwa Beer 500ml', quantity: 98, revenue: 88200 },
-            { name: 'Bread (Large)', quantity: 234, revenue: 117000 },
-            { name: 'Cooking Oil 1L', quantity: 67, revenue: 134000 },
-            { name: 'Sugar 1kg', quantity: 89, revenue: 89000 },
-          ],
-        },
-        customers: {
-          total: 234,
-          newThisMonth: 28,
-          topBuyers: [
-            { name: 'Jean Pierre', orders: 12, spent: 85000 },
-            { name: 'Marie Claire', orders: 9, spent: 67500 },
-            { name: 'Emmanuel K.', orders: 8, spent: 54000 },
-            { name: 'Grace M.', orders: 7, spent: 48000 },
-            { name: 'Patrick N.', orders: 6, spent: 42000 },
-          ],
-        },
-      });
+      const response = await retailerApi.getAnalytics({ period });
+      setData(response.data);
     } catch (error) {
       console.error('Error fetching analytics:', error);
-      // Use demo data
+      // Use demo data on error (for fallback presentation)
       setData({
         revenue: {
           total: 8500000,

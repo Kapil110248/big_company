@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Card,
   Row,
@@ -128,6 +129,7 @@ interface ChartData {
 
 export const RetailerDashboard: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -352,6 +354,7 @@ export const RetailerDashboard: React.FC = () => {
                     type="primary"
                     size="large"
                     icon={<ScanOutlined />}
+                    onClick={() => navigate('/retailer/pos')}
                     style={{ background: 'white', color: '#1890ff', border: 'none', fontWeight: 600 }}
                   >
                     Open POS
@@ -481,7 +484,7 @@ export const RetailerDashboard: React.FC = () => {
                   <Text strong>Today's Sales by Hour</Text>
                 </Space>
               }
-              extra={<Button type="link">View Analytics</Button>}
+              extra={<Button type="link" onClick={() => navigate('/retailer/analytics')}>View Analytics</Button>}
               style={{ borderRadius: 12 }}
             >
               <ResponsiveContainer width="100%" height={280}>
@@ -586,7 +589,7 @@ export const RetailerDashboard: React.FC = () => {
                   <Badge count={recentOrders.length} style={{ backgroundColor: '#1890ff' }} />
                 </Space>
               }
-              extra={<Button type="primary" ghost>View All</Button>}
+              extra={<Button type="primary" ghost onClick={() => navigate('/retailer/orders')}>View All</Button>}
               style={{ borderRadius: 12 }}
             >
               <Table
@@ -660,7 +663,7 @@ export const RetailerDashboard: React.FC = () => {
                   <Text strong>Top Selling Products</Text>
                 </Space>
               }
-              extra={<Button type="link">View Inventory</Button>}
+              extra={<Button type="link" onClick={() => navigate('/retailer/inventory')}>View Inventory</Button>}
               style={{ borderRadius: 12 }}
             >
               <List
@@ -711,7 +714,7 @@ export const RetailerDashboard: React.FC = () => {
                   <Badge count={lowStockItems.length} style={{ backgroundColor: '#fa8c16' }} />
                 </Space>
               }
-              extra={<Button type="primary" ghost icon={<PlusOutlined />}>Order Stock</Button>}
+              extra={<Button type="primary" ghost icon={<PlusOutlined />} onClick={() => navigate('/retailer/add-stock')}>Order Stock</Button>}
               style={{ borderRadius: 12 }}
             >
               <AnimatePresence>
@@ -725,7 +728,7 @@ export const RetailerDashboard: React.FC = () => {
                     >
                       <List.Item
                         actions={[
-                          <Button key="reorder" type="primary" size="small" style={{ background: '#fa8c16', borderColor: '#fa8c16' }}>
+                          <Button key="reorder" type="primary" size="small" style={{ background: '#fa8c16', borderColor: '#fa8c16' }} onClick={() => navigate('/retailer/add-stock')}>
                             Reorder
                           </Button>,
                         ]}
