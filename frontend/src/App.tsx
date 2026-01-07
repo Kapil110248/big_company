@@ -198,9 +198,7 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <AppLayout />
-                </ProtectedRoute>
-              }
-            >
+                </ProtectedRoute>}>
               <Route index element={<Navigate to="/admin/dashboard" replace />} />
               <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="employees" element={<EmployeeManagementPage />} />
