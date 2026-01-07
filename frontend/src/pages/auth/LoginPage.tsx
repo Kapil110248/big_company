@@ -86,8 +86,8 @@ const BriefcaseIcon = () => (
   </svg>
 );
 
-// Roles available in public login (admin excluded - uses separate internal auth)
-type PublicUserRole = 'consumer' | 'employee' | 'retailer' | 'wholesaler';
+// Roles available in public login
+type PublicUserRole = 'consumer' | 'employee' | 'retailer' | 'wholesaler' | 'admin';
 
 const roleConfig: Record<PublicUserRole, {
   title: string;
@@ -159,6 +159,20 @@ const roleConfig: Record<PublicUserRole, {
     authType: 'email' as const,
     credentials: { phone: '', pin: '', email: 'wholesaler@bigcompany.rw', password: 'wholesaler123' },
   },
+  admin: {
+    title: 'Admin Portal',
+    subtitle: 'System Administration & Management',
+    icon: <ShieldIcon />,
+    gradient: 'from-red-500 to-rose-600',
+    bgGradient: 'from-red-400 via-rose-500 to-pink-600',
+    lightBg: 'bg-red-50',
+    borderColor: 'border-red-200',
+    textColor: 'text-red-700',
+    buttonColor: 'bg-red-600 hover:bg-red-700',
+    redirect: '/admin/dashboard',
+    authType: 'email' as const,
+    credentials: { phone: '', pin: '', email: 'admin@bigcompany.rw', password: 'admin123' },
+  },
 };
 
 // Floating particles component for background
@@ -186,10 +200,9 @@ export const LoginPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { login, isLoading } = useAuth();
 
-  // Get role from URL or default to consumer (admin uses separate internal auth)
+  // Get role from URL or default to consumer
   const urlRole = searchParams.get('role');
-  // Only allow public roles - admin uses separate internal auth
-  const validPublicRoles: PublicUserRole[] = ['consumer', 'employee', 'retailer', 'wholesaler'];
+  const validPublicRoles: PublicUserRole[] = ['consumer', 'employee', 'retailer', 'wholesaler', 'admin'];
   const initialRole: PublicUserRole = validPublicRoles.includes(urlRole as PublicUserRole)
     ? (urlRole as PublicUserRole)
     : 'consumer';
@@ -197,7 +210,7 @@ export const LoginPage: React.FC = () => {
   // Phone/PIN for consumers
   const [phone, setPhone] = useState('');
   const [pin, setPin] = useState('');
-  // Email/Password for retailer/wholesaler
+  // Email/Password for retailer/wholesaler/admin
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -244,11 +257,6 @@ export const LoginPage: React.FC = () => {
   const fillDemoCredentials = () => {
     // Fill based on current visible method
     if (authMethod === 'phone') {
-      // If role is consumer but method is phone, use phone creds. 
-      // If role is consumer and method is email, we need email creds?
-      // The config has one set.
-      // For consumer, config has phone/pin, but empty email/pass.
-      // I should hardcode demo email for consumer here if missing in config?
       if (activeRole === 'consumer') {
           setPhone('250788100001');
           setPin('1234');
@@ -258,20 +266,7 @@ export const LoginPage: React.FC = () => {
       }
     } else {
       if (activeRole === 'consumer') {
-          // Hardcoded demo email/pass for consumer until config is updated
-          setEmail('consumer@bigcompany.rw');
-          setPassword('1234'); // Or whatever the password is. 
-          // Wait, the seed said consumer only has PIN initially.
-          // The user instructions said "customer phone number or pin se login ho rha hai ese bhi email or password se intrigate kro".
-          // I verified backend works with password.
-          // I should verify what the valid password is.
-          // Seed data: consumer@bigcompany.rw / 1234 (hashed as PIN).
-          // But does consumer have a password set?
-          // In seed.ts: `pin: consumerPin` (which is hash of '1234').
-          // `password` field is not set for consumer in seed.ts!
-          // So 'consumer@bigcompany.rw' / '1234' won't work as password unless I update seed.
-          // But I already told the user to register a new user or update seed.
-          // For now, I will pre-fill with a placeholder or the intended one.
+          // Hardcoded demo email/pass for consumer
           setEmail('consumer@bigcompany.rw'); 
           setPassword('1234');
       } else {
@@ -311,15 +306,15 @@ export const LoginPage: React.FC = () => {
           </div>
 
           {/* Role Selection Tabs */}
-          <div className="flex border-b border-gray-200">
-            {(['consumer', 'employee', 'retailer', 'wholesaler'] as PublicUserRole[]).map((role) => (
+          <div className="flex border-b border-gray-200 overflow-x-auto">
+            {(['consumer', 'employee', 'retailer', 'wholesaler', 'admin'] as PublicUserRole[]).map((role) => (
               <button
                 key={role}
                 onClick={() => setActiveRole(role)}
-                className={`flex-1 py-4 text-sm font-medium transition-all relative ${activeRole === role
+                className={`flex-1 py-4 px-2 text-sm font-medium transition-all relative ${activeRole === role
                     ? `${roleConfig[role].textColor}`
                     : 'text-gray-500 hover:text-gray-700'
-                  }`}
+                  } whitespace-nowrap`}
               >
                 {role.charAt(0).toUpperCase() + role.slice(1)}
                 {activeRole === role && (

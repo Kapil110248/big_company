@@ -233,10 +233,10 @@ export const retailerApi = {
   makeRepayment: (orderId: string, amount: number) =>
     api.post(`/retailer/credit/orders/${orderId}/repay`, { amount }),
 
-  // Wholesalers
+  // Wholesalers & Stock
   getWholesalers: () => api.get('/retailer/wholesalers'),
-  getWholesalerProducts: (wholesalerId: string) =>
-    api.get(`/retailer/wholesalers/${wholesalerId}/products`),
+  getWholesalerProducts: (params?: any) => api.get('/retailer/wholesaler/products', { params }), // Correct endpoint
+  createOrder: (data: any) => api.post('/retailer/orders', data),
 
   // Branch Management
   getBranches: () => api.get('/retailer/branches'),
