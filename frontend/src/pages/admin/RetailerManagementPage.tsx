@@ -1,45 +1,38 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Box,
-  Button,
   Card,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  IconButton,
   Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
+  Button,
+  Space,
+  Tag,
+  Modal,
+  Form,
+  Input,
+  message,
   Typography,
-  Chip,
-  Alert,
-  CircularProgress,
-  Paper,
-  InputAdornment,
-  Stack,
-  Tooltip,
+  Row,
+  Col,
   Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-} from '@mui/material';
+  InputNumber,
+  Tooltip
+} from 'antd';
 import {
-  Add as AddIcon,
-  Edit as EditIcon,
-  Block as BlockIcon,
-  CheckCircle as CheckCircleIcon,
-  Search as SearchIcon,
-  Store as StoreIcon,
-  Phone as PhoneIcon,
-  Email as EmailIcon,
-  LocationOn as LocationIcon,
-} from '@mui/icons-material';
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  ShopOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  StopOutlined
+} from '@ant-design/icons';
+import type { ColumnsType } from 'antd/es/table';
 import { adminApi } from '../../services/apiService';
+
+const { Title, Text } = Typography;
+const { Option } = Select;
+const { TextArea } = Input;
 
 interface Retailer {
   id: string;
@@ -48,301 +41,364 @@ interface Retailer {
   phone: string;
   email: string;
   location: string;
-  status: 'active' | 'suspended' | 'pending';
+  status: 'active' | 'suspended' | 'pending' | 'inactive';
   credit_limit: number;
   current_balance: number;
   created_at: string;
 }
 
 const RetailerManagementPage: React.FC = () => {
-  const [retailers, setRetailers] = useState<Retailer[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [error, setError] = useState<string>('');
-  const [success, setSuccess] = useState<string>('');
-  const [detailsDialog, setDetailsDialog] = useState<Retailer | null>(null);
+  const [retailers, setRetailers] = useState<Retailer[]>([]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form] = Form.useForm();
+  const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   useEffect(() => {
-    fetchRetailers();
+    loadRetailers();
   }, [statusFilter]);
 
-  const fetchRetailers = async () => {
+  const loadRetailers = async () => {
     setLoading(true);
     try {
-      const response = await adminApi.getRetailers({
-        status: statusFilter === 'all' ? undefined : statusFilter,
-      });
+      const response = await adminApi.getRetailers();
+      if (response.data?.retailers) {
+        const mappedRetailers = response.data.retailers.map((r: any) => ({
+          id: r.id,
+          store_name: r.shopName,
+          owner_name: r.user?.name || 'N/A',
+          email: r.user?.email,
+          phone: r.user?.phone,
+          location: r.address,
+          credit_limit: r.creditLimit,
+          current_balance: 0,
+          status: r.user?.isActive ? 'active' : 'inactive',
+          created_at: r.createdAt
+        }));
 
-      if (response.data.success) {
-        setRetailers(response.data.retailers || []);
+        const filtered = statusFilter === 'all'
+          ? mappedRetailers
+          : mappedRetailers.filter((r: Retailer) => r.status === statusFilter);
+
+        setRetailers(filtered);
       }
-    } catch (err: any) {
-      console.error('Error fetching retailers:', err);
-      setError('Failed to load retailers. Using mock data.');
+    } catch (error: any) {
+      console.error('Failed to load retailers:', error);
+      message.error('Failed to load retailers');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleStatusChange = async (retailerId: string, newStatus: string) => {
+  const handleSave = async (values: any) => {
     try {
-      await adminApi.updateRetailerStatus(retailerId, newStatus === 'active');
-
-      setSuccess(`Retailer status updated to ${newStatus}`);
-      fetchRetailers();
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err: any) {
-      console.error('Error updating status:', err);
-      setError('Failed to update status');
+      setLoading(true);
+      if (editingId) {
+        await adminApi.updateRetailer(editingId, {
+          business_name: values.store_name, // Map form field to API expected field
+          email: values.email,
+          phone: values.phone,
+          address: values.location,
+          credit_limit: values.credit_limit,
+        });
+        message.success('Retailer updated successfully');
+      } else {
+        await adminApi.createRetailer({
+          business_name: values.store_name,
+          email: values.email,
+          phone: values.phone,
+          password: values.password,
+          address: values.location,
+          credit_limit: values.credit_limit,
+        });
+        message.success('Retailer created successfully');
+      }
+      setModalVisible(false);
+      form.resetFields();
+      setEditingId(null);
+      loadRetailers();
+    } catch (error: any) {
+      message.error(error.response?.data?.message || 'Failed to save retailer');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const filteredRetailers = retailers.filter(
-    (retailer) =>
-      retailer.store_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      retailer.owner_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      retailer.phone?.includes(searchQuery)
-  );
+  const handleEdit = (record: Retailer) => {
+    setEditingId(record.id);
+    form.setFieldsValue({
+      store_name: record.store_name,
+      email: record.email,
+      phone: record.phone,
+      location: record.location,
+      credit_limit: record.credit_limit,
+    });
+    setModalVisible(true);
+  };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'success';
-      case 'suspended':
-        return 'error';
-      case 'pending':
-        return 'warning';
-      default:
-        return 'default';
+  const handleDelete = (id: string, name: string) => {
+    Modal.confirm({
+      title: 'Delete Retailer',
+      content: `Are you sure you want to delete ${name}? This action cannot be undone.`,
+      okText: 'Delete',
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          await adminApi.deleteRetailer(id);
+          message.success('Retailer deleted successfully');
+          loadRetailers();
+        } catch (error: any) {
+          message.error('Failed to delete retailer');
+        }
+      },
+    });
+  };
+
+  const handleStatusChange = async (record: Retailer) => {
+    const newStatus = record.status === 'active' ? false : true;
+    try {
+      await adminApi.updateRetailerStatus(record.id, newStatus);
+      message.success(`Retailer ${newStatus ? 'activated' : 'deactivated'} successfully`);
+      loadRetailers();
+    } catch (error: any) {
+      message.error('Failed to update status');
     }
   };
+
+  const filteredRetailers = retailers.filter(r => {
+    return (
+      r.store_name?.toLowerCase().includes(searchText.toLowerCase()) ||
+      r.owner_name?.toLowerCase().includes(searchText.toLowerCase()) ||
+      r.phone?.includes(searchText) ||
+      r.email?.toLowerCase().includes(searchText.toLowerCase())
+    );
+  });
+
+  const columns: ColumnsType<Retailer> = [
+    {
+      title: 'Store Name',
+      key: 'store_name',
+      render: (_, record) => (
+        <Space>
+          <ShopOutlined />
+          <strong>{record.store_name}</strong>
+        </Space>
+      ),
+    },
+    {
+      title: 'Owner',
+      dataIndex: 'owner_name',
+      key: 'owner_name',
+    },
+    {
+      title: 'Contact',
+      key: 'contact',
+      render: (_, record) => (
+        <div style={{ fontSize: '12px' }}>
+          <div>{record.phone}</div>
+          <div style={{ color: '#888' }}>{record.email}</div>
+        </div>
+      ),
+    },
+    {
+      title: 'Location',
+      dataIndex: 'location',
+      key: 'location',
+    },
+    {
+      title: 'Credit Limit',
+      dataIndex: 'credit_limit',
+      key: 'credit_limit',
+      render: (val) => `${(val || 0).toLocaleString()} RWF`,
+    },
+    {
+      title: 'Status',
+      key: 'status',
+      render: (_, record) => {
+        let color = 'default';
+        let icon = null;
+        if (record.status === 'active') { color = 'green'; icon = <CheckCircleOutlined />; }
+        else if (record.status === 'suspended') { color = 'red'; icon = <StopOutlined />; }
+        else if (record.status === 'inactive') { color = 'red'; icon = <CloseCircleOutlined />; }
+        else if (record.status === 'pending') { color = 'gold'; }
+
+        return (
+          <Tag color={color} icon={icon}>
+            {record.status.toUpperCase()}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_, record) => (
+        <Space>
+          <Tooltip title="Edit">
+            <Button
+              type="primary"
+              ghost
+              icon={<EditOutlined />}
+              size="small"
+              onClick={() => handleEdit(record)}
+            />
+          </Tooltip>
+
+          <Tooltip title={record.status === 'active' ? "Deactivate" : "Activate"}>
+            <Button
+              type={record.status === 'active' ? 'default' : 'primary'}
+              danger={record.status === 'active'}
+              icon={record.status === 'active' ? <StopOutlined /> : <CheckCircleOutlined />}
+              size="small"
+              onClick={() => handleStatusChange(record)}
+            />
+          </Tooltip>
+
+          <Tooltip title="Delete">
+            <Button
+              type="primary"
+              danger
+              icon={<DeleteOutlined />}
+              size="small"
+              onClick={() => handleDelete(record.id, record.store_name)}
+            />
+          </Tooltip>
+        </Space>
+      ),
+    },
+  ];
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" component="h1">
-          <StoreIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-          Retailer Management
-        </Typography>
-      </Stack>
+    <div>
+      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <Title level={2} style={{ margin: 0 }}>Retailer Management</Title>
+          <Text type="secondary">Manage retailer accounts</Text>
+        </div>
+        <Space>
+          <Button icon={<ReloadOutlined />} onClick={loadRetailers}>Refresh</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => {
+            setEditingId(null);
+            form.resetFields();
+            setModalVisible(true);
+          }}>
+            Add Retailer
+          </Button>
+        </Space>
+      </div>
 
-      {error && (
-        <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
-
-      {success && (
-        <Alert severity="success" onClose={() => setSuccess('')} sx={{ mb: 2 }}>
-          {success}
-        </Alert>
-      )}
-
-      <Card sx={{ mb: 3, p: 2 }}>
-        <Stack direction="row" spacing={2}>
-          <TextField
-            placeholder="Search retailers..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-            }}
-            sx={{ flex: 1 }}
+      <Card>
+        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+          <Input
+            prefix={<SearchOutlined />}
+            placeholder="Search by store, owner, email, or phone"
+            style={{ width: 300 }}
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
           />
-          <FormControl sx={{ minWidth: 150 }}>
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={statusFilter}
-              label="Status"
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <MenuItem value="all">All Status</MenuItem>
-              <MenuItem value="active">Active</MenuItem>
-              <MenuItem value="pending">Pending</MenuItem>
-              <MenuItem value="suspended">Suspended</MenuItem>
-            </Select>
-          </FormControl>
-        </Stack>
+          <Select defaultValue="all" style={{ width: 120 }} onChange={setStatusFilter}>
+            <Option value="all">All Status</Option>
+            <Option value="active">Active</Option>
+            <Option value="inactive">Inactive</Option>
+          </Select>
+        </div>
+        <Table
+          columns={columns}
+          dataSource={filteredRetailers}
+          rowKey="id"
+          loading={loading}
+          pagination={{ pageSize: 10 }}
+        />
       </Card>
 
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-              <TableCell><strong>Store Name</strong></TableCell>
-              <TableCell><strong>Owner</strong></TableCell>
-              <TableCell><strong>Contact</strong></TableCell>
-              <TableCell><strong>Location</strong></TableCell>
-              <TableCell><strong>Credit Limit</strong></TableCell>
-              <TableCell><strong>Balance</strong></TableCell>
-              <TableCell><strong>Status</strong></TableCell>
-              <TableCell><strong>Actions</strong></TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={8} align="center">
-                  <CircularProgress />
-                </TableCell>
-              </TableRow>
-            ) : filteredRetailers.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} align="center">
-                  <Typography color="textSecondary">No retailers found</Typography>
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredRetailers.map((retailer) => (
-                <TableRow key={retailer.id} hover>
-                  <TableCell>
-                    <Typography variant="body2" fontWeight="bold">
-                      {retailer.store_name}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>{retailer.owner_name}</TableCell>
-                  <TableCell>
-                    <Stack spacing={0.5}>
-                      <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center' }}>
-                        <PhoneIcon fontSize="small" sx={{ mr: 0.5 }} />
-                        {retailer.phone}
-                      </Typography>
-                      {retailer.email && (
-                        <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center' }}>
-                          <EmailIcon fontSize="small" sx={{ mr: 0.5 }} />
-                          {retailer.email}
-                        </Typography>
-                      )}
-                    </Stack>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center' }}>
-                      <LocationIcon fontSize="small" sx={{ mr: 0.5 }} />
-                      {retailer.location}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>{(retailer.credit_limit || 0).toLocaleString()} RWF</TableCell>
-                  <TableCell>{(retailer.current_balance || 0).toLocaleString()} RWF</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={retailer.status}
-                      color={getStatusColor(retailer.status) as any}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Stack direction="row" spacing={1}>
-                      <Tooltip title="View Details">
-                        <IconButton
-                          size="small"
-                          onClick={() => setDetailsDialog(retailer)}
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      {retailer.status === 'active' ? (
-                        <Tooltip title="Suspend">
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => handleStatusChange(retailer.id, 'suspended')}
-                          >
-                            <BlockIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      ) : (
-                        <Tooltip title="Activate">
-                          <IconButton
-                            size="small"
-                            color="success"
-                            onClick={() => handleStatusChange(retailer.id, 'active')}
-                          >
-                            <CheckCircleIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                    </Stack>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      {/* Details Dialog */}
-      <Dialog open={!!detailsDialog} onClose={() => setDetailsDialog(null)} maxWidth="md" fullWidth>
-        <DialogTitle>Retailer Details</DialogTitle>
-        <DialogContent>
-          {detailsDialog && (
-            <Stack spacing={2} sx={{ mt: 2 }}>
-              <TextField
+      <Modal
+        title={editingId ? 'Edit Retailer' : 'Add Retailer'}
+        open={modalVisible}
+        onCancel={() => {
+          setModalVisible(false);
+          form.resetFields();
+          setEditingId(null);
+        }}
+        footer={null}
+        width={700}
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={handleSave}
+        >
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="store_name"
                 label="Store Name"
-                value={detailsDialog.store_name}
-                fullWidth
-                InputProps={{ readOnly: true }}
-              />
-              <TextField
-                label="Owner Name"
-                value={detailsDialog.owner_name}
-                fullWidth
-                InputProps={{ readOnly: true }}
-              />
-              <TextField
+                rules={[{ required: true, message: 'Required' }]}
+              >
+                <Input placeholder="Tech Store Ltd" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="phone"
                 label="Phone"
-                value={detailsDialog.phone}
-                fullWidth
-                InputProps={{ readOnly: true }}
-              />
-              <TextField
+                rules={[{ required: true, message: 'Required' }]}
+              >
+                <Input placeholder="+250..." />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="email"
                 label="Email"
-                value={detailsDialog.email || 'N/A'}
-                fullWidth
-                InputProps={{ readOnly: true }}
-              />
-              <TextField
-                label="Location"
-                value={detailsDialog.location}
-                fullWidth
-                InputProps={{ readOnly: true }}
-              />
-              <TextField
-                label="Credit Limit"
-                value={`${detailsDialog.credit_limit.toLocaleString()} RWF`}
-                fullWidth
-                InputProps={{ readOnly: true }}
-              />
-              <TextField
-                label="Current Balance"
-                value={`${detailsDialog.current_balance.toLocaleString()} RWF`}
-                fullWidth
-                InputProps={{ readOnly: true }}
-              />
-              <TextField
-                label="Status"
-                value={detailsDialog.status}
-                fullWidth
-                InputProps={{ readOnly: true }}
-              />
-              <TextField
-                label="Joined"
-                value={new Date(detailsDialog.created_at).toLocaleDateString()}
-                fullWidth
-                InputProps={{ readOnly: true }}
-              />
-            </Stack>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDetailsDialog(null)}>Close</Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+                rules={[{ required: true, type: 'email' }]}
+              >
+                <Input placeholder="store@example.com" />
+              </Form.Item>
+            </Col>
+            {!editingId && (
+              <Col span={12}>
+                <Form.Item
+                  name="password"
+                  label="Password"
+                  rules={[{ required: true, min: 8 }]}
+                >
+                  <Input.Password placeholder="Min 8 chars" />
+                </Form.Item>
+              </Col>
+            )}
+          </Row>
+
+          <Form.Item
+            name="location"
+            label="Address / Location"
+          >
+            <TextArea rows={2} placeholder="Kigali, Rwanda..." />
+          </Form.Item>
+
+          <Form.Item
+            name="credit_limit"
+            label="Credit Limit (RWF)"
+            initialValue={0}
+          >
+            <InputNumber style={{ width: '100%' }} formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} parser={(value) => value?.replace(/\$\s?|(,*)/g, '') as unknown as number} />
+          </Form.Item>
+
+          <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
+            <Space>
+              <Button onClick={() => setModalVisible(false)}>Cancel</Button>
+              <Button type="primary" htmlType="submit" loading={loading}>
+                {editingId ? 'Update' : 'Create'}
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+    </div>
   );
 };
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   Row,
@@ -9,129 +9,106 @@ import {
   Table,
   Tag,
   Input,
-  Select,
+  Progress,
   Modal,
   Form,
+  Select,
   InputNumber,
   DatePicker,
   message,
   Statistic,
-  Progress,
+  Popconfirm
 } from 'antd';
 import {
-  RocketOutlined,
+  DollarOutlined,
   PlusOutlined,
   SearchOutlined,
-  EyeOutlined,
-  DollarOutlined,
+  FunnelPlotOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  RiseOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { dealsService, Deal } from '../../services/dealsService';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
-interface Deal {
-  id: string;
-  title: string;
-  client: string;
-  value: number;
-  stage: 'lead' | 'qualified' | 'proposal' | 'negotiation' | 'closed_won' | 'closed_lost';
-  probability: number;
-  owner: string;
-  expectedCloseDate: string;
-  createdDate: string;
-}
-
 export const DealsPage: React.FC = () => {
-  const [searchText, setSearchText] = useState('');
-  const [stageFilter, setStageFilter] = useState<string>('all');
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const [form] = Form.useForm();
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
-  const deals: Deal[] = [
-    {
-      id: '1',
-      title: 'Enterprise Software License',
-      client: 'ABC Corporation',
-      value: 25000000,
-      stage: 'negotiation',
-      probability: 70,
-      owner: 'John Employee',
-      expectedCloseDate: '2025-12-31',
-      createdDate: '2025-11-01',
-    },
-    {
-      id: '2',
-      title: 'Consulting Services',
-      client: 'XYZ Ltd',
-      value: 15000000,
-      stage: 'proposal',
-      probability: 50,
-      owner: 'Sarah Johnson',
-      expectedCloseDate: '2026-01-15',
-      createdDate: '2025-11-15',
-    },
-    {
-      id: '3',
-      title: 'Annual Maintenance Contract',
-      client: 'DEF Industries',
-      value: 8000000,
-      stage: 'closed_won',
-      probability: 100,
-      owner: 'Michael Chen',
-      expectedCloseDate: '2025-11-30',
-      createdDate: '2025-10-01',
-    },
-  ];
-
-  const getStageColor = (stage: string) => {
-    const colors: Record<string, string> = {
-      lead: 'default',
-      qualified: 'processing',
-      proposal: 'warning',
-      negotiation: 'orange',
-      closed_won: 'success',
-      closed_lost: 'error',
-    };
-    return colors[stage] || 'default';
-  };
-
-  const filteredDeals = deals.filter((deal) => {
-    const matchesSearch =
-      deal.title.toLowerCase().includes(searchText.toLowerCase()) ||
-      deal.client.toLowerCase().includes(searchText.toLowerCase());
-    const matchesStage = stageFilter === 'all' || deal.stage === stageFilter;
-    return matchesSearch && matchesStage;
-  });
-
-  const totalValue = deals.reduce((sum, d) => sum + d.value, 0);
-  const wonDeals = deals.filter((d) => d.stage === 'closed_won');
-  const wonValue = wonDeals.reduce((sum, d) => sum + d.value, 0);
-  const pipelineValue = deals
-    .filter((d) => d.stage !== 'closed_won' && d.stage !== 'closed_lost')
-    .reduce((sum, d) => sum + (d.value * d.probability) / 100, 0);
-
-  const handleAddDeal = async (values: any) => {
+  const fetchDeals = async () => {
     try {
-      console.log('Adding deal:', values);
-      message.success('Deal created successfully!');
-      setShowAddModal(false);
-      form.resetFields();
+      setLoading(true);
+      const data = await dealsService.getDeals();
+      setDeals(data.deals);
     } catch (error) {
-      message.error('Failed to create deal');
+      message.error('Failed to load deals');
+    } finally {
+      setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchDeals();
+  }, []);
+
+  const handleCreateDeal = async (values: any) => {
+    try {
+      if (editingId) {
+        await dealsService.updateDeal(editingId, values);
+        message.success('Deal updated');
+      } else {
+        await dealsService.createDeal(values);
+        message.success('Deal created');
+      }
+      setShowModal(false);
+      setEditingId(null);
+      form.resetFields();
+      fetchDeals();
+    } catch (error) {
+      message.error('Failed to save deal');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await dealsService.deleteDeal(id);
+      message.success('Deal deleted');
+      fetchDeals();
+    } catch (error) {
+      message.error('Failed to delete deal');
+    }
+  };
+
+  const handleEdit = (record: Deal) => {
+    setEditingId(record.id);
+    form.setFieldsValue({
+      ...record,
+      expectedCloseDate: record.expectedCloseDate ? dayjs(record.expectedCloseDate) : null
+    });
+    setShowModal(true);
+  };
+
+  const totalValue = deals.reduce((acc, curr) => acc + curr.value, 0);
+  const activeDeals = deals.length;
+  const closedWon = deals.filter(d => d.stage === 'closed_won').reduce((acc, curr) => acc + curr.value, 0);
+
   const columns = [
     {
-      title: 'Deal',
-      key: 'deal',
-      render: (_: any, record: Deal) => (
+      title: 'Deal Name',
+      dataIndex: 'title',
+      key: 'title',
+      render: (text: string, record: Deal) => (
         <div>
-          <Text strong>{record.title}</Text>
+          <Text strong>{text}</Text>
           <br />
           <Text type="secondary" style={{ fontSize: 12 }}>
-            {record.client}
+            {record.clientName}
           </Text>
         </div>
       ),
@@ -140,24 +117,31 @@ export const DealsPage: React.FC = () => {
       title: 'Value',
       dataIndex: 'value',
       key: 'value',
-      render: (value: number) => `${value.toLocaleString()} RWF`,
+      render: (value: number) => (
+        <Text strong style={{ color: '#52c41a' }}>
+          {value.toLocaleString()} RWF
+        </Text>
+      ),
     },
     {
       title: 'Stage',
       dataIndex: 'stage',
       key: 'stage',
-      render: (stage: string) => (
-        <Tag color={getStageColor(stage)}>{stage.replace('_', ' ').toUpperCase()}</Tag>
-      ),
+      render: (stage: string) => {
+        let color = 'default';
+        if (stage === 'closed_won') color = 'success';
+        if (stage === 'closed_lost') color = 'error';
+        if (stage === 'negotiation') color = 'warning';
+        if (stage === 'proposal') color = 'processing';
+        return <Tag color={color}>{stage.replace('_', ' ').toUpperCase()}</Tag>;
+      },
     },
     {
       title: 'Probability',
       dataIndex: 'probability',
       key: 'probability',
       render: (prob: number) => (
-        <div style={{ width: 100 }}>
-          <Progress percent={prob} size="small" />
-        </div>
+        <Progress percent={prob} size="small" status={prob >= 80 ? 'success' : 'active'} />
       ),
     },
     {
@@ -168,158 +152,156 @@ export const DealsPage: React.FC = () => {
     {
       title: 'Expected Close',
       dataIndex: 'expectedCloseDate',
-      key: 'expectedCloseDate',
-      render: (date: string) => dayjs(date).format('MMM DD, YYYY'),
+      key: 'closeDate',
+      render: (date: string) => date ? dayjs(date).format('MMM DD, YYYY') : '-',
     },
     {
       title: 'Actions',
       key: 'actions',
-      render: () => (
-        <Button type="link" icon={<EyeOutlined />}>
-          View
-        </Button>
+      render: (_: any, record: Deal) => (
+        <Space>
+          <Button type="link" icon={<EditOutlined />} onClick={() => handleEdit(record)} />
+          <Popconfirm title="Delete deal?" onConfirm={() => handleDelete(record.id)}>
+            <Button type="link" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
+        </Space>
       ),
-    },
+    }
   ];
 
   return (
     <div>
       <Title level={2}>
-        <RocketOutlined /> Deals & Sales Pipeline
+        <RiseOutlined /> Deals & Pipeline
       </Title>
 
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={12} sm={6}>
+        <Col xs={24} sm={8}>
           <Card>
             <Statistic
-              title="Total Pipeline"
+              title="Total Pipeline Value"
               value={totalValue}
-              prefix="RWF"
-              valueStyle={{ color: '#1890ff', fontSize: 18 }}
+              precision={0}
+              suffix="RWF"
+              prefix={<DollarOutlined />}
+              valueStyle={{ color: '#1890ff' }}
             />
           </Card>
         </Col>
-        <Col xs={12} sm={6}>
+        <Col xs={24} sm={8}>
           <Card>
             <Statistic
-              title="Closed Won"
-              value={wonValue}
-              prefix="RWF"
-              valueStyle={{ color: '#52c41a', fontSize: 18 }}
+              title="Active Deals"
+              value={activeDeals}
+              prefix={<FunnelPlotOutlined />}
             />
           </Card>
         </Col>
-        <Col xs={12} sm={6}>
+        <Col xs={24} sm={8}>
           <Card>
             <Statistic
-              title="Weighted Pipeline"
-              value={Math.round(pipelineValue)}
-              prefix="RWF"
-              valueStyle={{ color: '#722ed1', fontSize: 18 }}
-            />
-          </Card>
-        </Col>
-        <Col xs={12} sm={6}>
-          <Card>
-            <Statistic
-              title="Total Deals"
-              value={deals.length}
-              prefix={<RocketOutlined />}
-              valueStyle={{ color: '#faad14' }}
+              title="Closed Won (Total)"
+              value={closedWon}
+              precision={0}
+              suffix="RWF"
+              valueStyle={{ color: '#52c41a' }}
             />
           </Card>
         </Col>
       </Row>
 
-      <Card
-        title="All Deals"
-        extra={
-          <Space>
-            <Input
-              placeholder="Search deals..."
-              prefix={<SearchOutlined />}
-              onChange={(e) => setSearchText(e.target.value)}
-              style={{ width: 200 }}
-            />
-            <Select value={stageFilter} onChange={setStageFilter} style={{ width: 150 }}>
-              <Option value="all">All Stages</Option>
-              <Option value="lead">Lead</Option>
-              <Option value="qualified">Qualified</Option>
-              <Option value="proposal">Proposal</Option>
-              <Option value="negotiation">Negotiation</Option>
-              <Option value="closed_won">Closed Won</Option>
-            </Select>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setShowAddModal(true)}>
-              Add Deal
-            </Button>
-          </Space>
-        }
-      >
-        <Table dataSource={filteredDeals} columns={columns} rowKey="id" pagination={{ pageSize: 10 }} />
+      <Card>
+        <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'flex-end' }}>
+          <Input
+            placeholder="Search deals..."
+            prefix={<SearchOutlined />}
+            style={{ width: 200 }}
+          />
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              setEditingId(null);
+              form.resetFields();
+              setShowModal(true);
+            }}
+          >
+            Add Deal
+          </Button>
+        </Space>
+
+        <Table
+          dataSource={deals}
+          columns={columns}
+          rowKey="id"
+          loading={loading}
+        />
       </Card>
 
       <Modal
-        title="Add New Deal"
-        open={showAddModal}
+        title={editingId ? "Edit Deal" : "Create New Deal"}
+        open={showModal}
         onCancel={() => {
-          setShowAddModal(false);
+          setShowModal(false);
+          setEditingId(null);
           form.resetFields();
         }}
         footer={null}
-        width={700}
       >
-        <Form form={form} layout="vertical" onFinish={handleAddDeal}>
+        <Form form={form} layout="vertical" onFinish={handleCreateDeal}>
           <Form.Item name="title" label="Deal Title" rules={[{ required: true }]}>
-            <Input size="large" />
+            <Input placeholder="e.g., Enterprise License - Client X" />
           </Form.Item>
+
+          <Form.Item name="clientName" label="Client Name" rules={[{ required: true }]}>
+            <Input placeholder="Client Company Name" />
+          </Form.Item>
+
           <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item name="client" label="Client Name" rules={[{ required: true }]}>
-                <Input size="large" />
-              </Form.Item>
-            </Col>
             <Col span={12}>
               <Form.Item name="value" label="Deal Value (RWF)" rules={[{ required: true }]}>
                 <InputNumber
                   style={{ width: '100%' }}
-                  size="large"
-                  min={0}
                   formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                   parser={(value) => value?.replace(/\$\s?|(,*)/g, '') as any}
                 />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="stage" label="Stage" rules={[{ required: true }]}>
-                <Select size="large">
-                  <Option value="lead">Lead</Option>
-                  <Option value="qualified">Qualified</Option>
-                  <Option value="proposal">Proposal</Option>
-                  <Option value="negotiation">Negotiation</Option>
-                </Select>
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="probability" label="Win Probability (%)" rules={[{ required: true }]}>
-                <InputNumber style={{ width: '100%' }} size="large" min={0} max={100} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
               <Form.Item name="owner" label="Deal Owner" rules={[{ required: true }]}>
-                <Input size="large" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="expectedCloseDate" label="Expected Close Date" rules={[{ required: true }]}>
-                <DatePicker style={{ width: '100%' }} size="large" />
+                <Input placeholder="Sales Rep Name" />
               </Form.Item>
             </Col>
           </Row>
 
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="stage" label="Stage" rules={[{ required: true }]}>
+                <Select>
+                  <Option value="lead">Lead</Option>
+                  <Option value="qualified">Qualified</Option>
+                  <Option value="proposal">Proposal</Option>
+                  <Option value="negotiation">Negotiation</Option>
+                  <Option value="closed_won">Closed Won</Option>
+                  <Option value="closed_lost">Closed Lost</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="probability" label="Probability (%)" rules={[{ required: true }]}>
+                <InputNumber min={0} max={100} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item name="expectedCloseDate" label="Expected Close Date">
+            <DatePicker style={{ width: '100%' }} />
+          </Form.Item>
+
           <Form.Item>
             <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
-              <Button onClick={() => { setShowAddModal(false); form.resetFields(); }}>Cancel</Button>
-              <Button type="primary" htmlType="submit">Add Deal</Button>
+              <Button onClick={() => setShowModal(false)}>Cancel</Button>
+              <Button type="primary" htmlType="submit">{editingId ? 'Update Deal' : 'Create Deal'}</Button>
             </Space>
           </Form.Item>
         </Form>
@@ -327,5 +309,4 @@ export const DealsPage: React.FC = () => {
     </div>
   );
 };
-
 export default DealsPage;

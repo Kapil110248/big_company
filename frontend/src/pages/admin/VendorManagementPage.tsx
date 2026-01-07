@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   Row,
@@ -9,186 +9,160 @@ import {
   Table,
   Tag,
   Input,
-  Select,
   Modal,
   Form,
-  InputNumber,
   message,
   Statistic,
   Dropdown,
+  Tooltip
 } from 'antd';
 import {
   ShopOutlined,
   PlusOutlined,
   SearchOutlined,
-  EyeOutlined,
   EditOutlined,
   DeleteOutlined,
   MoreOutlined,
-  CheckCircleOutlined,
-  DollarOutlined,
+  PhoneOutlined,
+  MailOutlined,
+  EnvironmentOutlined
 } from '@ant-design/icons';
+import { supplierService, Supplier } from '../../services/supplierService';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
-const { Option } = Select;
 
-interface Vendor {
-  id: string;
-  vendorCode: string;
-  name: string;
-  type: string;
-  contactPerson: string;
-  email: string;
-  phone: string;
-  address: string;
-  status: 'active' | 'inactive';
-  paymentTerms: string;
-  totalPaid: number;
-  bankAccount: string;
-}
-
-export const VendorManagementPage: React.FC = () => {
+const VendorManagementPage: React.FC = () => {
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
-  const [typeFilter, setTypeFilter] = useState<string>('all');
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form] = Form.useForm();
 
-  const vendors: Vendor[] = [
-    {
-      id: '1',
-      vendorCode: 'VEN001',
-      name: 'Office Supplies Ltd',
-      type: 'Office Equipment',
-      contactPerson: 'James Smith',
-      email: 'james@officesupplies.rw',
-      phone: '250788400001',
-      address: 'KN 4 Ave, Kigali',
-      status: 'active',
-      paymentTerms: 'Net 30',
-      totalPaid: 5200000,
-      bankAccount: '**** **** 1111',
-    },
-    {
-      id: '2',
-      vendorCode: 'VEN002',
-      name: 'Tech Solutions Rwanda',
-      type: 'IT Services',
-      contactPerson: 'Maria Garcia',
-      email: 'maria@techsolutions.rw',
-      phone: '250788400002',
-      address: 'KG 7 Ave, Kigali',
-      status: 'active',
-      paymentTerms: 'Net 15',
-      totalPaid: 12500000,
-      bankAccount: '**** **** 2222',
-    },
-    {
-      id: '3',
-      vendorCode: 'VEN003',
-      name: 'Cleaning Services Pro',
-      type: 'Facility Services',
-      contactPerson: 'David Wilson',
-      email: 'david@cleaningpro.rw',
-      phone: '250788400003',
-      address: 'KK 12 Ave, Kigali',
-      status: 'active',
-      paymentTerms: 'Monthly',
-      totalPaid: 3600000,
-      bankAccount: '**** **** 3333',
-    },
-  ];
-
-  const filteredVendors = vendors.filter((vendor) => {
-    const matchesSearch =
-      vendor.name.toLowerCase().includes(searchText.toLowerCase()) ||
-      vendor.vendorCode.toLowerCase().includes(searchText.toLowerCase()) ||
-      vendor.contactPerson.toLowerCase().includes(searchText.toLowerCase());
-    const matchesType = typeFilter === 'all' || vendor.type === typeFilter;
-    return matchesSearch && matchesType;
-  });
-
-  const totalVendors = vendors.length;
-  const activeVendors = vendors.filter((v) => v.status === 'active').length;
-  const totalSpent = vendors.reduce((sum, v) => sum + v.totalPaid, 0);
-
-  const handleAddVendor = async (values: any) => {
+  const fetchSuppliers = async () => {
     try {
-      console.log('Adding vendor:', values);
-      message.success('Vendor added successfully!');
-      setShowAddModal(false);
-      form.resetFields();
+      setLoading(true);
+      const data = await supplierService.getSuppliers();
+      setSuppliers(data.suppliers);
     } catch (error) {
-      message.error('Failed to add vendor');
+      message.error('Failed to fetch vendors');
+      console.error(error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDelete = (id: string) => {
+  useEffect(() => {
+    fetchSuppliers();
+  }, []);
+
+  const handleSave = async (values: any) => {
+    try {
+      if (editingId) {
+        await supplierService.updateSupplier(editingId, values);
+        message.success('Vendor updated successfully');
+      } else {
+        await supplierService.createSupplier(values);
+        message.success('Vendor created successfully');
+      }
+      setShowModal(false);
+      setEditingId(null);
+      form.resetFields();
+      fetchSuppliers();
+    } catch (error: any) {
+      message.error(error.response?.data?.error || 'Operation failed');
+    }
+  };
+
+  const handleDelete = (id: string, name: string) => {
     Modal.confirm({
       title: 'Delete Vendor',
-      content: 'Are you sure you want to delete this vendor?',
+      content: `Are you sure you want to delete ${name}? This action cannot be undone.`,
       okText: 'Delete',
       okType: 'danger',
-      onOk: () => {
-        message.success('Vendor deleted successfully');
+      onOk: async () => {
+        try {
+          await supplierService.deleteSupplier(id);
+          message.success('Vendor deleted successfully');
+          fetchSuppliers();
+        } catch (error: any) {
+          message.error(error.response?.data?.error || 'Failed to delete vendor');
+        }
       },
     });
   };
 
+  const openEditModal = (record: Supplier) => {
+    setEditingId(record.id);
+    form.setFieldsValue(record);
+    setShowModal(true);
+  };
+
+  const filteredSuppliers = suppliers.filter(s =>
+    s.name.toLowerCase().includes(searchText.toLowerCase()) ||
+    (s.contactPerson?.toLowerCase().includes(searchText.toLowerCase())) ||
+    (s.email?.toLowerCase().includes(searchText.toLowerCase()))
+  );
+
   const columns = [
     {
-      title: 'Vendor',
-      key: 'vendor',
-      render: (_: any, record: Vendor) => (
-        <div>
-          <Text strong>{record.name}</Text>
-          <br />
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            {record.vendorCode} • {record.type}
-          </Text>
-        </div>
+      title: 'Vendor Name',
+      dataIndex: 'name',
+      key: 'name',
+      render: (text: string, record: Supplier) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{text}</Text>
+          {record.contactPerson && <Text type="secondary" style={{ fontSize: 12 }}>Contact: {record.contactPerson}</Text>}
+        </Space>
       ),
     },
     {
-      title: 'Contact',
+      title: 'Contact Info',
       key: 'contact',
-      render: (_: any, record: Vendor) => (
-        <div>
-          <Text>{record.contactPerson}</Text>
-          <br />
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            {record.email}
-          </Text>
-          <br />
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            {record.phone}
-          </Text>
-        </div>
+      render: (_: any, record: Supplier) => (
+        <Space direction="vertical" size={2}>
+          {record.email && (
+            <Space size={4}>
+              <MailOutlined style={{ color: '#1890ff' }} />
+              <Text style={{ fontSize: 13 }}>{record.email}</Text>
+            </Space>
+          )}
+          {record.phone && (
+            <Space size={4}>
+              <PhoneOutlined style={{ color: '#52c41a' }} />
+              <Text style={{ fontSize: 13 }}>{record.phone}</Text>
+            </Space>
+          )}
+        </Space>
       ),
     },
     {
-      title: 'Payment Terms',
-      dataIndex: 'paymentTerms',
-      key: 'paymentTerms',
-      render: (terms: string) => <Tag>{terms}</Tag>,
+      title: 'Address',
+      dataIndex: 'address',
+      key: 'address',
+      ellipsis: {
+        showTitle: false,
+      },
+      render: (address: string) => (
+        <Tooltip placement="topLeft" title={address}>
+          {address}
+        </Tooltip>
+      ),
     },
     {
-      title: 'Total Paid',
-      dataIndex: 'totalPaid',
-      key: 'totalPaid',
-      render: (amount: number) => `${amount.toLocaleString()} RWF`,
-    },
-    {
-      title: 'Bank Account',
-      dataIndex: 'bankAccount',
-      key: 'bankAccount',
+      title: 'Products',
+      key: 'products',
+      render: (_: any, record: Supplier) => (
+        <Tag color="cyan">{record._count?.products || 0} Products</Tag>
+      ),
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => (
-        <Tag color={status === 'active' ? 'success' : 'default'}>
+        <Tag color={status === 'active' ? 'success' : 'error'}>
           {status.toUpperCase()}
         </Tag>
       ),
@@ -196,34 +170,22 @@ export const VendorManagementPage: React.FC = () => {
     {
       title: 'Actions',
       key: 'actions',
-      render: (_: any, record: Vendor) => (
+      render: (_: any, record: Supplier) => (
         <Dropdown
           menu={{
             items: [
               {
-                key: 'view',
-                icon: <EyeOutlined />,
-                label: 'View Details',
-              },
-              {
                 key: 'edit',
                 icon: <EditOutlined />,
                 label: 'Edit',
-              },
-              {
-                key: 'pay',
-                icon: <DollarOutlined />,
-                label: 'Make Payment',
-              },
-              {
-                type: 'divider',
+                onClick: () => openEditModal(record),
               },
               {
                 key: 'delete',
                 icon: <DeleteOutlined />,
                 label: 'Delete',
                 danger: true,
-                onClick: () => handleDelete(record.id),
+                onClick: () => handleDelete(record.id, record.name),
               },
             ],
           }}
@@ -236,147 +198,129 @@ export const VendorManagementPage: React.FC = () => {
 
   return (
     <div>
-      <Title level={2}>
-        <ShopOutlined /> Vendor Management
-      </Title>
+      <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
+        <Col>
+          <Title level={2}>
+            <ShopOutlined /> Vendor Management
+          </Title>
+        </Col>
+        <Col>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              setEditingId(null);
+              form.resetFields();
+              setShowModal(true);
+            }}
+          >
+            Add New Vendor
+          </Button>
+        </Col>
+      </Row>
 
-      {/* Stats */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={12} sm={8}>
+      <Row gutter={16} style={{ marginBottom: 24 }}>
+        <Col span={8}>
           <Card>
-            <Statistic
-              title="Total Vendors"
-              value={totalVendors}
-              prefix={<ShopOutlined style={{ color: '#1890ff' }} />}
-              valueStyle={{ color: '#1890ff' }}
-            />
+            <Statistic title="Total Vendors" value={suppliers.length} prefix={<ShopOutlined />} />
           </Card>
         </Col>
-        <Col xs={12} sm={8}>
+        <Col span={8}>
           <Card>
-            <Statistic
-              title="Active Vendors"
-              value={activeVendors}
-              prefix={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
-              valueStyle={{ color: '#52c41a' }}
-            />
+            <Statistic title="Active Vendors" value={suppliers.filter(s => s.status === 'active').length} valueStyle={{ color: '#3f8600' }} />
           </Card>
         </Col>
-        <Col xs={24} sm={8}>
+        <Col span={8}>
           <Card>
-            <Statistic
-              title="Total Spent"
-              value={totalSpent}
-              prefix="RWF"
-              valueStyle={{ color: '#722ed1', fontSize: 18 }}
-            />
+            <Statistic title="Total Products Sourced" value={suppliers.reduce((acc, curr) => acc + (curr._count?.products || 0), 0)} />
           </Card>
         </Col>
       </Row>
 
-      {/* Vendor List */}
-      <Card
-        title="All Vendors"
-        extra={
-          <Space>
-            <Input
-              placeholder="Search vendors..."
-              prefix={<SearchOutlined />}
-              onChange={(e) => setSearchText(e.target.value)}
-              style={{ width: 200 }}
-            />
-            <Select value={typeFilter} onChange={setTypeFilter} style={{ width: 150 }}>
-              <Option value="all">All Types</Option>
-              <Option value="Office Equipment">Office Equipment</Option>
-              <Option value="IT Services">IT Services</Option>
-              <Option value="Facility Services">Facility Services</Option>
-            </Select>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setShowAddModal(true)}>
-              Add Vendor
-            </Button>
-          </Space>
-        }
-      >
-        <Table dataSource={filteredVendors} columns={columns} rowKey="id" pagination={{ pageSize: 10 }} />
+      <Card>
+        <div style={{ marginBottom: 16 }}>
+          <Input
+            placeholder="Search vendors..."
+            prefix={<SearchOutlined />}
+            onChange={e => setSearchText(e.target.value)}
+            style={{ width: 300 }}
+          />
+        </div>
+        <Table
+          columns={columns}
+          dataSource={filteredSuppliers}
+          rowKey="id"
+          loading={loading}
+          pagination={{ pageSize: 10 }}
+        />
       </Card>
 
-      {/* Add Vendor Modal */}
       <Modal
-        title="Add New Vendor"
-        open={showAddModal}
-        onCancel={() => {
-          setShowAddModal(false);
-          form.resetFields();
-        }}
+        title={editingId ? "Edit Vendor" : "Add New Vendor"}
+        open={showModal}
+        onCancel={() => setShowModal(false)}
         footer={null}
-        width={700}
       >
-        <Form form={form} layout="vertical" onFinish={handleAddVendor}>
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={handleSave}
+          initialValues={{ status: 'active' }}
+        >
+          <Form.Item
+            name="name"
+            label="Vendor Name"
+            rules={[{ required: true, message: 'Please enter vendor name' }]}
+          >
+            <Input placeholder="e.g. ABC Distributors" />
+          </Form.Item>
+
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="name" label="Vendor Name" rules={[{ required: true }]}>
-                <Input size="large" />
+              <Form.Item name="contactPerson" label="Contact Person">
+                <Input placeholder="John Doe" />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="type" label="Vendor Type" rules={[{ required: true }]}>
-                <Select size="large">
-                  <Option value="Office Equipment">Office Equipment</Option>
-                  <Option value="IT Services">IT Services</Option>
-                  <Option value="Facility Services">Facility Services</Option>
-                  <Option value="Other">Other</Option>
-                </Select>
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="contactPerson" label="Contact Person" rules={[{ required: true }]}>
-                <Input size="large" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email' }]}>
-                <Input size="large" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="phone" label="Phone" rules={[{ required: true }]}>
-                <Input size="large" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="paymentTerms" label="Payment Terms" rules={[{ required: true }]}>
-                <Select size="large">
-                  <Option value="Net 15">Net 15</Option>
-                  <Option value="Net 30">Net 30</Option>
-                  <Option value="Net 60">Net 60</Option>
-                  <Option value="Monthly">Monthly</Option>
-                </Select>
-              </Form.Item>
-            </Col>
-            <Col span={24}>
-              <Form.Item name="address" label="Address">
-                <TextArea rows={2} />
-              </Form.Item>
-            </Col>
-            <Col span={24}>
-              <Form.Item name="bankAccount" label="Bank Account (Direct Deposit)" rules={[{ required: true }]}>
-                <Input size="large" placeholder="For automated payments" />
+              <Form.Item name="phone" label="Phone Number">
+                <Input placeholder="+250..." />
               </Form.Item>
             </Col>
           </Row>
 
-          <Form.Item>
-            <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
-              <Button
-                onClick={() => {
-                  setShowAddModal(false);
-                  form.resetFields();
-                }}
-              >
-                Cancel
-              </Button>
+          <Form.Item name="email" label="Email" rules={[{ type: 'email' }]}>
+            <Input placeholder="vendor@example.com" />
+          </Form.Item>
+
+          <Form.Item name="address" label="Address">
+            <TextArea rows={2} placeholder="Office location..." />
+          </Form.Item>
+
+          {editingId && (
+            <Form.Item name="status" label="Status">
+              <Input.Group compact>
+                <Button
+                  type={form.getFieldValue('status') === 'active' ? 'primary' : 'default'}
+                  onClick={() => form.setFieldsValue({ status: 'active' })}
+                >
+                  Active
+                </Button>
+                <Button
+                  type={form.getFieldValue('status') === 'inactive' ? 'primary' : 'default'}
+                  danger
+                  onClick={() => form.setFieldsValue({ status: 'inactive' })}
+                >
+                  Inactive
+                </Button>
+              </Input.Group>
+            </Form.Item>
+          )}
+
+          <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
+            <Space>
+              <Button onClick={() => setShowModal(false)}>Cancel</Button>
               <Button type="primary" htmlType="submit">
-                Add Vendor
+                {editingId ? 'Update Vendor' : 'Create Vendor'}
               </Button>
             </Space>
           </Form.Item>

@@ -271,11 +271,10 @@ export const AppLayout: React.FC = () => {
               return (
                 <div
                   key={item.key}
-                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-all ${
-                    isActive
-                      ? 'border-r-4'
-                      : 'hover:bg-gray-50'
-                  }`}
+                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-all ${isActive
+                    ? 'border-r-4'
+                    : 'hover:bg-gray-50'
+                    }`}
                   style={{
                     backgroundColor: isActive ? themeColor.light : undefined,
                     borderColor: isActive ? themeColor.primary : undefined,
@@ -327,14 +326,12 @@ export const AppLayout: React.FC = () => {
                 <button
                   key={item.key}
                   onClick={() => handleMenuClick(item.path)}
-                  className={`flex flex-col items-center justify-center flex-1 h-full py-1 px-1 transition-all ${
-                    isActive ? 'scale-105' : 'opacity-60 hover:opacity-100'
-                  }`}
+                  className={`flex flex-col items-center justify-center flex-1 h-full py-1 px-1 transition-all ${isActive ? 'scale-105' : 'opacity-60 hover:opacity-100'
+                    }`}
                 >
                   <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center mb-0.5 transition-all ${
-                      isActive ? 'shadow-lg' : ''
-                    }`}
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center mb-0.5 transition-all ${isActive ? 'shadow-lg' : ''
+                      }`}
                     style={{
                       background: isActive ? themeColor.gradient : 'transparent',
                       color: isActive ? 'white' : '#6b7280',
@@ -344,9 +341,8 @@ export const AppLayout: React.FC = () => {
                     {item.icon}
                   </div>
                   <span
-                    className={`text-[10px] font-medium transition-colors ${
-                      isActive ? '' : 'text-gray-500'
-                    }`}
+                    className={`text-[10px] font-medium transition-colors ${isActive ? '' : 'text-gray-500'
+                      }`}
                     style={{ color: isActive ? themeColor.primary : undefined }}
                   >
                     {item.mobileLabel || item.label}

@@ -71,6 +71,7 @@ import NFCCardManagementPage from './pages/admin/NFCCardManagementPage';
 import ReportsPage from './pages/admin/ReportsPage';
 import CustomerManagementPage from './pages/admin/CustomerManagementPage';
 import EmployeeManagementPage from './pages/admin/EmployeeManagementPage';
+import EmployeeDetailsPage from './pages/admin/EmployeeDetailsPage';
 import PayrollProcessingPage from './pages/admin/PayrollProcessingPage';
 import RecruitmentPage from './pages/admin/RecruitmentPage';
 import VendorManagementPage from './pages/admin/VendorManagementPage';
@@ -202,6 +203,7 @@ function App() {
               <Route index element={<Navigate to="/admin/dashboard" replace />} />
               <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="employees" element={<EmployeeManagementPage />} />
+              <Route path="employees/:id" element={<EmployeeDetailsPage />} />
               <Route path="payroll" element={<PayrollProcessingPage />} />
               <Route path="recruitment" element={<RecruitmentPage />} />
               <Route path="vendors" element={<VendorManagementPage />} />
