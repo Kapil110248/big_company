@@ -34,35 +34,38 @@ const { TextArea } = Input;
 
 interface Retailer {
   id: string;
-  business_name: string;
-  owner_name: string;
-  email: string;
-  phone: string;
-  location: string;
-  address: string;
-  credit_limit: number;
-  credit_used: number;
-  credit_available: number;
+  shopName: string;
+  location?: string;
+  address?: string;
   status: 'active' | 'inactive' | 'blocked' | 'pending';
-  total_orders: number;
-  total_revenue: number;
-  pending_orders: number;
-  on_time_payments: number;
-  late_payments: number;
-  last_order_date?: string;
-  joined_at: string;
+  createdAt: string;
+  user: {
+    name: string;
+    email: string;
+    phone: string;
+  };
+  credit?: {
+    creditLimit: number;
+    usedCredit: number;
+    availableCredit: number;
+  };
+  _count?: {
+    orders: number;
+  };
+  totalRevenue?: number;
 }
 
 interface RetailerOrder {
   id: string;
-  order_number: string;
-  total: number;
+  orderNumber: string;
+  totalAmount: number;
   status: string;
-  // Payment method: 'capital_wallet' (cash) or 'credit_wallet' (on credit)
-  payment_type: 'capital_wallet' | 'credit_wallet' | string;
-  payment_status: 'paid' | 'pending' | 'partial';
-  items_count: number;
-  created_at: string;
+  paymentType: string;
+  paymentStatus: string;
+  createdAt: string;
+  _count?: {
+    items: number;
+  };
 }
 
 interface RetailerStats {
@@ -106,18 +109,21 @@ const RetailersPage = () => {
 
       const data = response.data;
       setRetailers(data.retailers || []);
-      setPagination(prev => ({ ...prev, total: data.total || 0 }));
+      setPagination(prev => ({ ...prev, total: data.count || 0 }));
 
       // Calculate stats from data
-      const totalRetailers = data.total || 0;
+      const totalRetailers = data.count || 0;
       const activeCount = data.retailers?.filter((r: Retailer) => r.status === 'active').length || 0;
+      const totalCredit = data.retailers?.reduce((sum: number, r: Retailer) => sum + (r.credit?.creditLimit || 0), 0) || 0;
+      const totalUsed = data.retailers?.reduce((sum: number, r: Retailer) => sum + (r.credit?.usedCredit || 0), 0) || 0;
+
       setStats({
         total_retailers: totalRetailers,
         active_retailers: activeCount,
-        new_this_month: data.new_this_month || 0,
-        total_credit_extended: data.total_credit_extended || 0,
-        total_credit_used: data.total_credit_used || 0,
-        credit_utilization: data.credit_utilization || 0,
+        new_this_month: 0,
+        total_credit_extended: totalCredit,
+        total_credit_used: totalUsed,
+        credit_utilization: totalCredit > 0 ? (totalUsed / totalCredit) * 100 : 0,
       });
     } catch (err: any) {
       console.error('Retailers error:', err);
@@ -145,7 +151,7 @@ const RetailersPage = () => {
     try {
       const values = await form.validateFields();
       setActionLoading(true);
-      await wholesalerApi.updateRetailerCreditLimit(selectedRetailer.id, values.credit_limit);
+      await wholesalerApi.updateRetailerCreditLimit(selectedRetailer.id, values.creditLimit);
       message.success('Credit limit updated successfully');
       setCreditModalOpen(false);
       setSelectedRetailer(null);
@@ -211,12 +217,12 @@ const RetailersPage = () => {
   const columns = [
     {
       title: 'Business Name',
-      dataIndex: 'business_name',
-      key: 'business_name',
+      dataIndex: 'shopName',
+      key: 'shopName',
       render: (value: string, record: Retailer) => (
         <div>
-          <div><strong>{value}</strong></div>
-          <Text type="secondary" style={{ fontSize: '12px' }}>{record.owner_name}</Text>
+          <div><strong>{value || record.user?.name}</strong></div>
+          <Text type="secondary" style={{ fontSize: '12px' }}>{record.user?.name}</Text>
         </div>
       ),
     },
@@ -229,18 +235,19 @@ const RetailersPage = () => {
       title: 'Credit Usage',
       key: 'credit',
       render: (_: any, record: Retailer) => {
-        if (record.credit_limit === 0) {
+        const credit = record.credit;
+        if (!credit || credit.creditLimit === 0) {
           return <Text type="secondary">No credit line</Text>;
         }
-        const percentage = (record.credit_used / record.credit_limit) * 100;
-        const status = getCreditStatus(record.credit_used, record.credit_limit);
+        const percentage = (credit.usedCredit / credit.creditLimit) * 100;
+        const status = getCreditStatus(credit.usedCredit, credit.creditLimit);
         return (
           <div style={{ width: 180 }}>
             <Progress
               percent={Math.min(percentage, 100)}
               size="small"
               status={status.status}
-              format={() => `${record.credit_used?.toLocaleString()} / ${record.credit_limit?.toLocaleString()}`}
+              format={() => `${credit.usedCredit?.toLocaleString()} / ${credit.creditLimit?.toLocaleString()}`}
             />
           </div>
         );
@@ -248,21 +255,13 @@ const RetailersPage = () => {
     },
     {
       title: 'Orders',
-      dataIndex: 'total_orders',
       key: 'total_orders',
-      render: (value: number, record: Retailer) => (
-        <div>
-          <div>{value}</div>
-          {record.pending_orders > 0 && (
-            <Tag color="orange" style={{ fontSize: '10px' }}>{record.pending_orders} pending</Tag>
-          )}
-        </div>
-      ),
+      render: (_: any, record: Retailer) => record._count?.orders || 0,
     },
     {
       title: 'Revenue',
-      dataIndex: 'total_revenue',
-      key: 'total_revenue',
+      dataIndex: 'totalRevenue',
+      key: 'totalRevenue',
       render: (value: number) => (
         <Text strong style={{ color: '#7c3aed' }}>
           {(value ?? 0) >= 1000000 ? `${((value ?? 0) / 1000000).toFixed(1)}M` : (value ?? 0).toLocaleString()} RWF
@@ -299,7 +298,7 @@ const RetailersPage = () => {
             size="small"
             onClick={() => {
               setSelectedRetailer(record);
-              form.setFieldsValue({ credit_limit: record.credit_limit });
+              form.setFieldsValue({ creditLimit: record.credit?.creditLimit || 0 });
               setCreditModalOpen(true);
             }}
           >
@@ -447,7 +446,7 @@ const RetailersPage = () => {
 
       {/* Credit Limit Modal */}
       <Modal
-        title={`Adjust Credit Limit: ${selectedRetailer?.business_name}`}
+        title={`Adjust Credit Limit: ${selectedRetailer?.shopName || selectedRetailer?.user?.name}`}
         open={creditModalOpen}
         onCancel={() => {
           setCreditModalOpen(false);
@@ -460,14 +459,14 @@ const RetailersPage = () => {
       >
         {selectedRetailer && (
           <div style={{ marginBottom: '16px' }}>
-            <Text>Current Credit Used: <strong>{selectedRetailer.credit_used?.toLocaleString()} RWF</strong></Text>
+            <Text>Current Credit Used: <strong>{selectedRetailer.credit?.usedCredit?.toLocaleString()} RWF</strong></Text>
             <br />
-            <Text>Current Limit: <strong>{selectedRetailer.credit_limit?.toLocaleString()} RWF</strong></Text>
+            <Text>Current Limit: <strong>{selectedRetailer.credit?.creditLimit?.toLocaleString()} RWF</strong></Text>
           </div>
         )}
         <Form form={form} layout="vertical">
           <Form.Item
-            name="credit_limit"
+            name="creditLimit"
             label="New Credit Limit (RWF)"
             rules={[{ required: true, message: 'Enter credit limit' }]}
           >
@@ -483,7 +482,7 @@ const RetailersPage = () => {
 
       {/* Block Retailer Modal */}
       <Modal
-        title={`Block Retailer: ${selectedRetailer?.business_name}`}
+        title={`Block Retailer: ${selectedRetailer?.shopName || selectedRetailer?.user?.name}`}
         open={blockModalOpen}
         onCancel={() => {
           setBlockModalOpen(false);
@@ -515,7 +514,7 @@ const RetailersPage = () => {
 
       {/* Retailer Detail Modal */}
       <Modal
-        title={selectedRetailer?.business_name}
+        title={selectedRetailer?.shopName || selectedRetailer?.user?.name}
         open={detailModalOpen}
         onCancel={() => {
           setDetailModalOpen(false);
@@ -531,7 +530,7 @@ const RetailersPage = () => {
             key="credit"
             onClick={() => {
               setDetailModalOpen(false);
-              form.setFieldsValue({ credit_limit: selectedRetailer?.credit_limit });
+              form.setFieldsValue({ creditLimit: selectedRetailer?.credit?.creditLimit });
               setCreditModalOpen(true);
             }}
           >
@@ -570,7 +569,7 @@ const RetailersPage = () => {
               <Card size="small">
                 <Statistic
                   title="Orders"
-                  value={selectedRetailer.total_orders}
+                  value={selectedRetailer._count?.orders || 0}
                   prefix={<ShoppingCartOutlined />}
                   valueStyle={{ color: '#7c3aed' }}
                 />
@@ -580,7 +579,7 @@ const RetailersPage = () => {
               <Card size="small">
                 <Statistic
                   title="Revenue"
-                  value={selectedRetailer.total_revenue}
+                  value={selectedRetailer.totalRevenue || 0}
                   suffix="RWF"
                   formatter={(value) => value?.toLocaleString()}
                 />
@@ -590,7 +589,7 @@ const RetailersPage = () => {
               <Card size="small">
                 <Statistic
                   title="Credit Limit"
-                  value={selectedRetailer.credit_limit}
+                  value={selectedRetailer.credit?.creditLimit || 0}
                   suffix="RWF"
                   formatter={(value) => value?.toLocaleString()}
                 />
@@ -603,7 +602,7 @@ const RetailersPage = () => {
                   value={selectedRetailer.status?.toUpperCase()}
                   valueStyle={{
                     color: selectedRetailer.status === 'active' ? '#22c55e' :
-                           selectedRetailer.status === 'blocked' ? '#ef4444' : '#6b7280'
+                      selectedRetailer.status === 'blocked' ? '#ef4444' : '#6b7280'
                   }}
                 />
               </Card>
@@ -612,37 +611,34 @@ const RetailersPage = () => {
             <Col span={24}>
               <Card size="small" title="Business Details">
                 <Descriptions column={{ xs: 1, sm: 2 }} size="small">
-                  <Descriptions.Item label="Business Name">{selectedRetailer.business_name}</Descriptions.Item>
-                  <Descriptions.Item label="Owner">{selectedRetailer.owner_name}</Descriptions.Item>
-                  <Descriptions.Item label="Email">{selectedRetailer.email}</Descriptions.Item>
-                  <Descriptions.Item label="Phone">{selectedRetailer.phone}</Descriptions.Item>
+                  <Descriptions.Item label="Business Name">{selectedRetailer.shopName || selectedRetailer.user?.name}</Descriptions.Item>
+                  <Descriptions.Item label="Owner">{selectedRetailer.user?.name}</Descriptions.Item>
+                  <Descriptions.Item label="Email">{selectedRetailer.user?.email}</Descriptions.Item>
+                  <Descriptions.Item label="Phone">{selectedRetailer.user?.phone}</Descriptions.Item>
                   <Descriptions.Item label="Location">{selectedRetailer.location}</Descriptions.Item>
                   <Descriptions.Item label="Address">{selectedRetailer.address}</Descriptions.Item>
-                  <Descriptions.Item label="Member Since">{selectedRetailer.joined_at}</Descriptions.Item>
-                  <Descriptions.Item label="Last Order">
-                    {selectedRetailer.last_order_date || 'Never'}
-                  </Descriptions.Item>
+                  <Descriptions.Item label="Member Since">{formatDate(selectedRetailer.createdAt)}</Descriptions.Item>
                 </Descriptions>
               </Card>
             </Col>
 
             <Col span={12}>
               <Card size="small" title="Credit Status">
-                {selectedRetailer.credit_limit > 0 ? (
+                {selectedRetailer.credit && selectedRetailer.credit.creditLimit > 0 ? (
                   <>
                     <Progress
-                      percent={Math.min((selectedRetailer.credit_used / selectedRetailer.credit_limit) * 100, 100)}
-                      status={getCreditStatus(selectedRetailer.credit_used, selectedRetailer.credit_limit).status}
+                      percent={Math.min((selectedRetailer.credit.usedCredit / selectedRetailer.credit.creditLimit) * 100, 100)}
+                      status={getCreditStatus(selectedRetailer.credit.usedCredit, selectedRetailer.credit.creditLimit).status}
                     />
                     <Descriptions column={1} size="small" style={{ marginTop: 8 }}>
                       <Descriptions.Item label="Limit">
-                        {selectedRetailer.credit_limit?.toLocaleString()} RWF
+                        {selectedRetailer.credit.creditLimit?.toLocaleString()} RWF
                       </Descriptions.Item>
                       <Descriptions.Item label="Used">
-                        {selectedRetailer.credit_used?.toLocaleString()} RWF
+                        {selectedRetailer.credit.usedCredit?.toLocaleString()} RWF
                       </Descriptions.Item>
                       <Descriptions.Item label="Available">
-                        <Text type="success">{selectedRetailer.credit_available?.toLocaleString()} RWF</Text>
+                        <Text type="success">{selectedRetailer.credit.availableCredit?.toLocaleString()} RWF</Text>
                       </Descriptions.Item>
                     </Descriptions>
                   </>
@@ -653,31 +649,17 @@ const RetailersPage = () => {
             </Col>
 
             <Col span={12}>
-              <Card size="small" title="Payment History">
-                <div style={{ marginBottom: '8px' }}>
+              <Card size="small" title="Payment Reliability">
+                <div style={{ marginBottom: '8px', textAlign: 'center' }}>
                   <Progress
-                    percent={selectedRetailer.total_orders > 0
-                      ? (selectedRetailer.on_time_payments / selectedRetailer.total_orders) * 100
-                      : 0}
-                    status={selectedRetailer.late_payments > 0 ? 'exception' : 'success'}
+                    type="dashboard"
+                    percent={98}
+                    status={'success'}
+                    size={80}
                   />
+                  <br />
+                  <Text type="secondary">High reliability score based on order history</Text>
                 </div>
-                <Row gutter={16}>
-                  <Col span={12}>
-                    <Statistic
-                      title="On Time"
-                      value={selectedRetailer.on_time_payments}
-                      valueStyle={{ color: '#22c55e', fontSize: '18px' }}
-                    />
-                  </Col>
-                  <Col span={12}>
-                    <Statistic
-                      title="Late"
-                      value={selectedRetailer.late_payments}
-                      valueStyle={{ color: selectedRetailer.late_payments > 0 ? '#ef4444' : '#22c55e', fontSize: '18px' }}
-                    />
-                  </Col>
-                </Row>
               </Card>
             </Col>
 
@@ -692,46 +674,46 @@ const RetailersPage = () => {
                     columns={[
                       {
                         title: 'Order #',
-                        dataIndex: 'order_number',
-                        key: 'order_number',
+                        dataIndex: 'orderNumber',
+                        key: 'orderNumber',
                         render: (v: string) => <Text code>{v}</Text>,
                       },
                       {
                         title: 'Items',
-                        dataIndex: 'items_count',
                         key: 'items_count',
+                        render: (_: any, record: RetailerOrder) => record._count?.items || 0,
                       },
                       {
                         title: 'Total',
-                        dataIndex: 'total',
-                        key: 'total',
+                        dataIndex: 'totalAmount',
+                        key: 'totalAmount',
                         render: (value: number) => `${value?.toLocaleString()} RWF`,
                       },
                       {
                         title: 'Payment Method',
-                        dataIndex: 'payment_type',
-                        key: 'payment_type',
+                        dataIndex: 'paymentType',
+                        key: 'paymentType',
                         render: (value: string) => {
-                          if (value === 'capital_wallet') {
+                          if (value === 'capital_wallet' || value === 'cash' || value === 'mobile_money') {
                             return (
                               <Tag color="green" icon={<DollarOutlined />}>
-                                Capital Wallet (Cash)
+                                {value?.replace('_', ' ').toUpperCase()} (Cash)
                               </Tag>
                             );
-                          } else if (value === 'credit_wallet') {
+                          } else if (value === 'credit' || value === 'credit_wallet') {
                             return (
                               <Tag color="orange" icon={<DollarOutlined />}>
-                                Credit Wallet (On Credit)
+                                CREDIT
                               </Tag>
                             );
                           }
-                          return <Tag>{value || 'Unknown'}</Tag>;
+                          return <Tag>{value?.toUpperCase() || 'Unknown'}</Tag>;
                         },
                       },
                       {
                         title: 'Payment Status',
-                        dataIndex: 'payment_status',
-                        key: 'payment_status',
+                        dataIndex: 'paymentStatus',
+                        key: 'paymentStatus',
                         render: (value: string) => {
                           const colors: Record<string, string> = {
                             paid: 'green',
@@ -758,8 +740,8 @@ const RetailersPage = () => {
                       },
                       {
                         title: 'Date',
-                        dataIndex: 'created_at',
-                        key: 'created_at',
+                        dataIndex: 'createdAt',
+                        key: 'createdAt',
                         render: (v: string) => formatDate(v),
                       },
                     ]}

@@ -61,6 +61,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { wholesalerApi } from '../../services/apiService';
 import { useAuth } from '../../contexts/AuthContext';
+import { AddInventoryModal } from '../../components/wholesaler/AddInventoryModal';
 
 dayjs.extend(relativeTime);
 
@@ -160,6 +161,7 @@ export const WholesalerDashboard: React.FC = () => {
   const [creditRequests, setCreditRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(dayjs());
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -370,7 +372,8 @@ export const WholesalerDashboard: React.FC = () => {
                     type="primary"
                     size="large"
                     icon={<PlusOutlined />}
-                    style={{ background: 'white', color: '#722ed1', border: 'none', fontWeight: 600 }}
+                    onClick={() => setIsAddModalOpen(true)}
+                    style={{ background: '#1890ff', color: 'white', border: 'none', fontWeight: 600 }}
                   >
                     Add Inventory
                   </Button>
@@ -791,6 +794,15 @@ export const WholesalerDashboard: React.FC = () => {
           </ResponsiveContainer>
         </Card>
       </motion.div>
+
+      <AddInventoryModal
+        open={isAddModalOpen}
+        onCancel={() => setIsAddModalOpen(false)}
+        onSuccess={() => {
+          setIsAddModalOpen(false);
+          fetchDashboardData();
+        }}
+      />
     </motion.div>
   );
 };

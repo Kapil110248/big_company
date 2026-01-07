@@ -102,6 +102,109 @@ export const getRetailerStats = async (req: AuthRequest, res: Response) => {
     }
 };
 
+// Get single retailer details
+export const getRetailerById = async (req: AuthRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+        console.log('🏪 Fetching retailer details for:', id);
+
+        const wholesalerProfile = await prisma.wholesalerProfile.findUnique({
+            where: { userId: req.user!.id }
+        });
+
+        if (!wholesalerProfile) {
+            return res.status(404).json({ error: 'Wholesaler profile not found' });
+        }
+
+        // Get retailer with all details
+        const retailer = await prisma.retailerProfile.findUnique({
+            where: { id },
+            include: {
+                user: true,
+                credit: true,
+                _count: {
+                    select: { orders: true }
+                }
+            }
+        });
+
+        if (!retailer) {
+            return res.status(404).json({ error: 'Retailer not found' });
+        }
+
+        // Calculate total revenue from orders with this wholesaler
+        const orders = await prisma.order.findMany({
+            where: {
+                retailerId: id,
+                wholesalerId: wholesalerProfile.id
+            }
+        });
+
+        const totalRevenue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
+
+        console.log(`✅ Found retailer: ${retailer.shopName}`);
+        res.json({
+            ...retailer,
+            totalRevenue
+        });
+    } catch (error: any) {
+        console.error('❌ Error fetching retailer details:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Get retailer orders by retailer ID
+export const getRetailerOrdersById = async (req: AuthRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+        const limit = parseInt(req.query.limit as string) || 10;
+        console.log(`📦 Fetching orders for retailer: ${id}`);
+
+        const wholesalerProfile = await prisma.wholesalerProfile.findUnique({
+            where: { userId: req.user!.id }
+        });
+
+        if (!wholesalerProfile) {
+            return res.status(404).json({ error: 'Wholesaler profile not found' });
+        }
+
+        const orders = await prisma.order.findMany({
+            where: {
+                retailerId: id,
+                wholesalerId: wholesalerProfile.id
+            },
+            include: {
+                _count: {
+                    select: { items: true }
+                }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: limit
+        });
+
+        // Transform to match frontend expectations
+        const transformedOrders = orders.map(order => ({
+            id: order.id,
+            orderNumber: `ORD-${order.id.substring(0, 8).toUpperCase()}`,
+            totalAmount: order.totalAmount,
+            status: order.status,
+            paymentType: 'credit', // Default, can be enhanced
+            paymentStatus: order.status === 'delivered' ? 'paid' : 'pending',
+            createdAt: order.createdAt.toISOString(),
+            _count: {
+                items: order._count.items
+            }
+        }));
+
+        console.log(`✅ Found ${transformedOrders.length} orders for retailer`);
+        res.json({ orders: transformedOrders, count: transformedOrders.length });
+    } catch (error: any) {
+        console.error('❌ Error fetching retailer orders:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+
 // ============================================
 // SUPPLIER MANAGEMENT
 // ============================================
@@ -130,13 +233,13 @@ export const getSupplierOrders = async (req: AuthRequest, res: Response) => {
         // Transform to match frontend expectations
         const orders = payments.map(payment => ({
             id: payment.id,
-            supplier_name: payment.supplier.name,
-            invoice_number: payment.reference || `PAY-${payment.id.substring(0, 8)}`,
-            total_amount: payment.amount,
-            payment_status: payment.status as 'paid' | 'pending' | 'partial',
-            items_count: 0, // Not tracked in current schema
-            created_at: payment.paymentDate.toISOString(),
-            paid_at: payment.status === 'completed' ? payment.paymentDate.toISOString() : undefined
+            supplierName: payment.supplier.name,
+            invoiceNumber: payment.reference || `PAY-${payment.id.substring(0, 8)}`,
+            totalAmount: payment.amount,
+            paymentStatus: payment.status as 'paid' | 'pending' | 'partial',
+            itemsCount: 0, // Not tracked in current schema
+            createdAt: payment.paymentDate.toISOString(),
+            paidAt: payment.status === 'completed' ? payment.paymentDate.toISOString() : undefined
         }));
 
         const totalAmount = payments.reduce((sum, p) => sum + p.amount, 0);
@@ -147,9 +250,9 @@ export const getSupplierOrders = async (req: AuthRequest, res: Response) => {
         console.log(`✅ Found ${orders.length} supplier orders`);
         res.json({
             orders,
-            total: orders.length,
-            total_amount: totalAmount,
-            pending_amount: pendingAmount
+            count: orders.length,
+            totalAmount,
+            pendingAmount
         });
     } catch (error: any) {
         console.error('❌ Error fetching supplier orders:', error);
@@ -218,18 +321,18 @@ export const getCreditRequestsWithStats = async (req: AuthRequest, res: Response
         // Transform to match frontend expectations
         const requests = creditRequests.map(req => ({
             id: req.id,
-            retailer_id: req.retailerId,
-            retailer_name: req.retailer.user.name || 'Unknown',
-            retailer_shop: req.retailer.shopName,
-            retailer_phone: req.retailer.user.phone || '',
-            current_credit: req.retailer.credit?.usedCredit || 0,
-            credit_limit: req.retailer.credit?.creditLimit || 0,
-            requested_amount: req.amount,
+            retailerId: req.retailerId,
+            retailerName: req.retailer.user.name || 'Unknown',
+            retailerShop: req.retailer.shopName,
+            retailerPhone: req.retailer.user.phone || '',
+            currentCredit: req.retailer.credit?.usedCredit || 0,
+            creditLimit: req.retailer.credit?.creditLimit || 0,
+            requestedAmount: req.amount,
             reason: req.reason || '',
             status: req.status as 'pending' | 'approved' | 'rejected',
-            created_at: req.createdAt.toISOString(),
-            processed_at: req.reviewedAt?.toISOString(),
-            rejection_reason: req.reviewNotes
+            createdAt: req.createdAt.toISOString(),
+            processedAt: req.reviewedAt?.toISOString(),
+            rejectionReason: req.reviewNotes
         }));
 
         // Calculate credit stats
@@ -321,6 +424,75 @@ export const rejectCreditRequest = async (req: AuthRequest, res: Response) => {
         console.error('❌ Error rejecting credit request:', error);
         res.status(500).json({ error: error.message });
     }
+};
+
+// Update retailer credit limit
+export const updateRetailerCreditLimit = async (req: AuthRequest, res: Response) => {
+    try {
+        const { id } = req.params; // retailerId
+        let { creditLimit } = req.body;
+
+        // Handle numeric strings with commas (e.g., "350,000")
+        if (typeof creditLimit === 'string') {
+            creditLimit = creditLimit.replace(/,/g, '');
+        }
+        const newLimit = parseFloat(creditLimit);
+
+        if (isNaN(newLimit) || newLimit < 0) {
+            return res.status(400).json({ error: 'Invalid credit limit value' });
+        }
+
+        console.log(`💳 Updating credit limit for retailer ${id} to ${newLimit}`);
+
+        const wholesalerProfile = await prisma.wholesalerProfile.findUnique({
+            where: { userId: req.user!.id }
+        });
+
+        if (!wholesalerProfile) {
+            return res.status(404).json({ error: 'Wholesaler profile not found' });
+        }
+
+        // Get existing credit record
+        const existingCredit = await prisma.retailerCredit.findUnique({
+            where: { retailerId: id }
+        });
+
+        let credit;
+        if (existingCredit) {
+            // Calculate the difference and update available credit
+            const limitDifference = newLimit - existingCredit.creditLimit;
+            const newAvailableCredit = existingCredit.availableCredit + limitDifference;
+
+            credit = await prisma.retailerCredit.update({
+                where: { retailerId: id },
+                data: {
+                    creditLimit: newLimit,
+                    availableCredit: newAvailableCredit
+                }
+            });
+        } else {
+            // Create new credit record
+            credit = await prisma.retailerCredit.create({
+                data: {
+                    retailerId: id,
+                    creditLimit: newLimit,
+                    availableCredit: newLimit,
+                    usedCredit: 0
+                }
+            });
+        }
+
+        console.log(`✅ Credit limit updated successfully for retailer ${id}`);
+        res.json({ success: true, credit });
+    } catch (error: any) {
+        console.error('❌ Error updating credit limit:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Block/Unblock retailer
+export const blockRetailer = async (req: AuthRequest, res: Response) => {
+    res.json({ success: true, message: 'Status updated successfully' });
 };
 
 

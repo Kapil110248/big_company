@@ -1,8 +1,8 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-import prisma from './src/utils/prisma';
-import { hashPassword } from './src/utils/auth';
+import prisma from './utils/prisma';
+import { hashPassword } from './utils/auth';
 
 async function seed() {
     console.log('🌱 Starting comprehensive seed for B2B Wholesale System...\n');
@@ -65,7 +65,8 @@ async function seed() {
                     phone: '250788111001',
                     email: 'info@eagrains.rw',
                     address: 'Kigali Industrial Park',
-                    status: 'active'
+                    status: 'active',
+                    wholesalerId: wholesalerProfile!.id
                 }
             }),
             prisma.supplier.create({
@@ -75,7 +76,8 @@ async function seed() {
                     phone: '250788111002',
                     email: 'sales@rwbev.rw',
                     address: 'Nyabugogo, Kigali',
-                    status: 'active'
+                    status: 'active',
+                    wholesalerId: wholesalerProfile!.id
                 }
             }),
             prisma.supplier.create({
@@ -85,7 +87,8 @@ async function seed() {
                     phone: '250788111003',
                     email: 'contact@qualityfoods.rw',
                     address: 'Kimironko, Kigali',
-                    status: 'active'
+                    status: 'active',
+                    wholesalerId: wholesalerProfile!.id
                 }
             }),
             prisma.supplier.create({
@@ -95,7 +98,8 @@ async function seed() {
                     phone: '250788111004',
                     email: 'info@freshproduce.rw',
                     address: 'Kimihurura, Kigali',
-                    status: 'active'
+                    status: 'active',
+                    wholesalerId: wholesalerProfile!.id
                 }
             }),
             prisma.supplier.create({
@@ -105,7 +109,8 @@ async function seed() {
                     phone: '250788111005',
                     email: 'sales@household.rw',
                     address: 'Gikondo, Kigali',
-                    status: 'active'
+                    status: 'active',
+                    wholesalerId: wholesalerProfile!.id
                 }
             })
         ]);
@@ -640,7 +645,8 @@ async function seed() {
                         paymentDate,
                         reference: `PAY-${Date.now()}-${i}`,
                         status: 'completed',
-                        notes: `Payment for ${supplier.name}`
+                        notes: `Payment for ${supplier.name}`,
+                        wholesalerId: wholesalerProfile!.id
                     }
                 });
             }

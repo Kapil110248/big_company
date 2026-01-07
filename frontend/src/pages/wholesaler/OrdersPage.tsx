@@ -37,36 +37,39 @@ const { TextArea } = Input;
 
 interface OrderItem {
   id: string;
-  product_id: string;
+  productId: string;
   sku: string;
   name: string;
   quantity: number;
-  unit_price: number;
+  price: number;
   total: number;
+  product?: {
+    name: string;
+    sku: string;
+  }
 }
 
 interface RetailerOrder {
   id: string;
-  order_number: string;
-  retailer_id: string;
-  retailer_name: string;
-  retailer_phone: string;
-  retailer_location: string;
-  total: number;
-  subtotal: number;
-  tax: number;
+  orderNumber: string;
+  retailerId: string;
+  totalAmount: number;
   status: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'rejected';
-  payment_type: 'credit' | 'bank_transfer' | 'cash' | 'mobile_money';
-  payment_status: 'pending' | 'partial' | 'paid';
-  items_count: number;
-  items: OrderItem[];
-  tracking_number?: string;
-  delivery_notes?: string;
-  rejection_reason?: string;
-  created_at: string;
-  confirmed_at?: string;
-  shipped_at?: string;
-  delivered_at?: string;
+  paymentType: 'credit' | 'bank_transfer' | 'cash' | 'mobile_money';
+  paymentStatus: 'pending' | 'partial' | 'paid';
+  items?: OrderItem[];
+  createdAt: string;
+  confirmedAt?: string;
+  shippedAt?: string;
+  deliveredAt?: string;
+  retailer: {
+    shopName: string;
+    user: {
+      name: string;
+      phone: string;
+    };
+    location?: string;
+  };
 }
 
 interface OrderStats {
@@ -136,7 +139,7 @@ const OrdersPage = () => {
       const statsData = statsResponse.data;
 
       setOrders(ordersData.orders || []);
-      setPagination(prev => ({ ...prev, total: ordersData.total || 0 }));
+      setPagination(prev => ({ ...prev, total: ordersData.count || 0 }));
       setStats(statsData);
     } catch (err: any) {
       console.error('Orders error:', err);
@@ -162,7 +165,7 @@ const OrdersPage = () => {
     setActionLoading(true);
     try {
       await wholesalerApi.confirmOrder(selectedOrder.id);
-      message.success(`Order ${selectedOrder.order_number} confirmed`);
+      message.success(`Order ${selectedOrder.orderNumber} confirmed`);
       setConfirmModalOpen(false);
       setSelectedOrder(null);
       fetchOrders(true);
@@ -179,7 +182,7 @@ const OrdersPage = () => {
     setActionLoading(true);
     try {
       await wholesalerApi.rejectOrder(selectedOrder.id, values.reason);
-      message.success(`Order ${selectedOrder.order_number} rejected`);
+      message.success(`Order ${selectedOrder.orderNumber} rejected`);
       setRejectModalOpen(false);
       setSelectedOrder(null);
       form.resetFields();
@@ -197,7 +200,7 @@ const OrdersPage = () => {
     setActionLoading(true);
     try {
       await wholesalerApi.shipOrder(selectedOrder.id, values.tracking_number, values.delivery_notes);
-      message.success(`Order ${selectedOrder.order_number} marked as shipped`);
+      message.success(`Order ${selectedOrder.orderNumber} marked as shipped`);
       setShipModalOpen(false);
       setSelectedOrder(null);
       form.resetFields();
@@ -209,10 +212,10 @@ const OrdersPage = () => {
     }
   };
 
-  const handleDeliverOrder = async (order: RetailerOrder) => {
+  const handleConfirmDelivery = async (order: RetailerOrder) => {
     try {
       await wholesalerApi.confirmDelivery(order.id);
-      message.success(`Order ${order.order_number} delivered`);
+      message.success(`Order ${order.orderNumber} delivered`);
       fetchOrders(true);
     } catch (err: any) {
       message.error(err.response?.data?.error || 'Failed to confirm delivery');
@@ -225,8 +228,9 @@ const OrdersPage = () => {
     // Fetch full order details
     try {
       const response = await wholesalerApi.getOrder(order.id);
-      setSelectedOrder(response.data);
+      setSelectedOrder(response.data.order);
     } catch (err: any) {
+      console.error('Detail error:', err);
       message.error('Failed to load order details');
     }
   };
@@ -257,8 +261,8 @@ const OrdersPage = () => {
   const columns = [
     {
       title: 'Order #',
-      dataIndex: 'order_number',
-      key: 'order_number',
+      dataIndex: 'orderNumber',
+      key: 'orderNumber',
       render: (value: string) => <Text code strong>{value}</Text>,
     },
     {
@@ -266,20 +270,20 @@ const OrdersPage = () => {
       key: 'retailer',
       render: (_: any, record: RetailerOrder) => (
         <div>
-          <div><strong>{record.retailer_name}</strong></div>
-          <Text type="secondary" style={{ fontSize: '12px' }}>{record.retailer_location}</Text>
+          <div><strong>{record.retailer?.shopName || record.retailer?.user?.name}</strong></div>
+          <Text type="secondary" style={{ fontSize: '12px' }}>{record.retailer?.location || 'General'}</Text>
         </div>
       ),
     },
     {
       title: 'Items',
-      dataIndex: 'items_count',
       key: 'items_count',
+      render: (_: any, record: RetailerOrder) => record.items?.length || 0,
     },
     {
       title: 'Total',
-      dataIndex: 'total',
-      key: 'total',
+      dataIndex: 'totalAmount',
+      key: 'totalAmount',
       render: (value: number) => (
         <Text strong style={{ color: '#7c3aed' }}>
           {value?.toLocaleString()} RWF
@@ -288,8 +292,8 @@ const OrdersPage = () => {
     },
     {
       title: 'Payment',
-      dataIndex: 'payment_type',
-      key: 'payment_type',
+      dataIndex: 'paymentType',
+      key: 'paymentType',
       render: (value: string) => (
         <Tag color={paymentTypeColors[value] || 'default'}>
           {value?.replace('_', ' ').toUpperCase()}
@@ -308,8 +312,8 @@ const OrdersPage = () => {
     },
     {
       title: 'Date',
-      dataIndex: 'created_at',
-      key: 'created_at',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
       render: (value: string) => formatDate(value),
     },
     {
@@ -598,7 +602,7 @@ const OrdersPage = () => {
 
       {/* Order Detail Modal */}
       <Modal
-        title={`Order #${selectedOrder?.order_number}`}
+        title={`Order #${selectedOrder?.orderNumber}`}
         open={detailModalOpen}
         onCancel={() => {
           setDetailModalOpen(false);
@@ -668,26 +672,26 @@ const OrdersPage = () => {
                 <Card size="small" title="Order Details">
                   <Descriptions column={{ xs: 1, sm: 2 }} size="small">
                     <Descriptions.Item label="Order Number">
-                      <Text code>{selectedOrder.order_number}</Text>
+                      <Text code>{selectedOrder.orderNumber}</Text>
                     </Descriptions.Item>
                     <Descriptions.Item label="Status">
                       <Tag color={statusColors[selectedOrder.status]}>{selectedOrder.status?.toUpperCase()}</Tag>
                     </Descriptions.Item>
-                    <Descriptions.Item label="Retailer">{selectedOrder.retailer_name}</Descriptions.Item>
-                    <Descriptions.Item label="Phone">{selectedOrder.retailer_phone}</Descriptions.Item>
-                    <Descriptions.Item label="Location">{selectedOrder.retailer_location}</Descriptions.Item>
+                    <Descriptions.Item label="Retailer">{selectedOrder.retailer?.shopName || selectedOrder.retailer?.user?.name}</Descriptions.Item>
+                    <Descriptions.Item label="Phone">{selectedOrder.retailer?.user?.phone}</Descriptions.Item>
+                    <Descriptions.Item label="Location">{selectedOrder.retailer?.location || 'General'}</Descriptions.Item>
                     <Descriptions.Item label="Payment Type">
-                      <Tag color={paymentTypeColors[selectedOrder.payment_type]}>
-                        {selectedOrder.payment_type?.replace('_', ' ').toUpperCase()}
+                      <Tag color={paymentTypeColors[selectedOrder.paymentType]}>
+                        {selectedOrder.paymentType?.replace('_', ' ').toUpperCase()}
                       </Tag>
                     </Descriptions.Item>
                     <Descriptions.Item label="Payment Status">
-                      <Tag color={selectedOrder.payment_status === 'paid' ? 'green' : selectedOrder.payment_status === 'partial' ? 'orange' : 'default'}>
-                        {selectedOrder.payment_status?.toUpperCase()}
+                      <Tag color={selectedOrder.paymentStatus === 'paid' ? 'green' : selectedOrder.paymentStatus === 'partial' ? 'orange' : 'default'}>
+                        {selectedOrder.paymentStatus?.toUpperCase()}
                       </Tag>
                     </Descriptions.Item>
                     <Descriptions.Item label="Order Date">
-                      {formatDate(selectedOrder.created_at)}
+                      {formatDate(selectedOrder.createdAt)}
                     </Descriptions.Item>
                     {selectedOrder.tracking_number && (
                       <Descriptions.Item label="Tracking #">{selectedOrder.tracking_number}</Descriptions.Item>
@@ -717,14 +721,14 @@ const OrdersPage = () => {
                           title: 'SKU',
                           dataIndex: 'sku',
                           key: 'sku',
-                          render: (v: string) => <code>{v}</code>
+                          render: (v: string, item: OrderItem) => <code>{v || item.product?.sku}</code>
                         },
-                        { title: 'Product', dataIndex: 'name', key: 'name' },
+                        { title: 'Product', dataIndex: 'name', key: 'name', render: (v: string, item: OrderItem) => v || item.product?.name },
                         { title: 'Qty', dataIndex: 'quantity', key: 'quantity' },
                         {
                           title: 'Unit Price',
-                          dataIndex: 'unit_price',
-                          key: 'unit_price',
+                          dataIndex: 'price',
+                          key: 'price',
                           render: (value: number) => `${value?.toLocaleString()} RWF`,
                         },
                         {
@@ -740,27 +744,11 @@ const OrdersPage = () => {
                         <>
                           <Table.Summary.Row>
                             <Table.Summary.Cell index={0} colSpan={4} align="right">
-                              <strong>Subtotal</strong>
-                            </Table.Summary.Cell>
-                            <Table.Summary.Cell index={1}>
-                              <Text>{selectedOrder.subtotal?.toLocaleString()} RWF</Text>
-                            </Table.Summary.Cell>
-                          </Table.Summary.Row>
-                          <Table.Summary.Row>
-                            <Table.Summary.Cell index={0} colSpan={4} align="right">
-                              <strong>Tax</strong>
-                            </Table.Summary.Cell>
-                            <Table.Summary.Cell index={1}>
-                              <Text>{selectedOrder.tax?.toLocaleString()} RWF</Text>
-                            </Table.Summary.Cell>
-                          </Table.Summary.Row>
-                          <Table.Summary.Row>
-                            <Table.Summary.Cell index={0} colSpan={4} align="right">
                               <strong>Order Total</strong>
                             </Table.Summary.Cell>
                             <Table.Summary.Cell index={1}>
                               <Text strong style={{ color: '#7c3aed', fontSize: '16px' }}>
-                                {selectedOrder.total?.toLocaleString()} RWF
+                                {selectedOrder.totalAmount?.toLocaleString()} RWF
                               </Text>
                             </Table.Summary.Cell>
                           </Table.Summary.Row>
@@ -776,24 +764,24 @@ const OrdersPage = () => {
                   <Space direction="vertical">
                     <div>
                       <Text type="secondary">Created: </Text>
-                      <Text>{formatDate(selectedOrder.created_at)}</Text>
+                      <Text>{formatDate(selectedOrder.createdAt)}</Text>
                     </div>
-                    {selectedOrder.confirmed_at && (
+                    {selectedOrder.confirmedAt && (
                       <div>
                         <Text type="secondary">Confirmed: </Text>
-                        <Text>{formatDate(selectedOrder.confirmed_at)}</Text>
+                        <Text>{formatDate(selectedOrder.confirmedAt)}</Text>
                       </div>
                     )}
-                    {selectedOrder.shipped_at && (
+                    {selectedOrder.shippedAt && (
                       <div>
                         <Text type="secondary">Shipped: </Text>
-                        <Text>{formatDate(selectedOrder.shipped_at)}</Text>
+                        <Text>{formatDate(selectedOrder.shippedAt)}</Text>
                       </div>
                     )}
-                    {selectedOrder.delivered_at && (
+                    {selectedOrder.deliveredAt && (
                       <div>
                         <Text type="secondary">Delivered: </Text>
-                        <Text>{formatDate(selectedOrder.delivered_at)}</Text>
+                        <Text>{formatDate(selectedOrder.deliveredAt)}</Text>
                       </div>
                     )}
                   </Space>

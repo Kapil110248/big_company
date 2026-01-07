@@ -60,10 +60,44 @@ model WholesalerProfile {
   userId        String   @unique
   user          User     @relation(fields: [userId], references: [id])
   companyName   String
+  contactPerson String?
+  tinNumber     String?
   address       String?
   
-  inventory     Product[]
+  inventory      Product[]
   receivedOrders Order[]
+  suppliers      Supplier[]
+  supplierPayments SupplierPayment[]
+  settings       WholesalerSettings?
+}
+
+model WholesalerSettings {
+  id                String   @id @default(uuid())
+  wholesalerId      String   @unique
+  wholesaler        WholesalerProfile @relation(fields: [wholesalerId], references: [id])
+  
+  // Notification Preferences
+  pushNotifications Boolean  @default(true)
+  emailNotifications Boolean @default(true)
+  smsNotifications  Boolean  @default(true)
+  ussdAlerts        Boolean  @default(false)
+  
+  // USSD Configuration
+  ussdBusinessCode  String   @default("WHL001")
+  ussdLanguage      String   @default("en")
+  ussdAutoResponse  Boolean  @default(true)
+  
+  // Business Settings
+  paymentTerms      String   @default("net30")
+  defaultCreditLimit Float    @default(50000)
+  acceptedPayments  Json?    // Array of methods like ["wallet", "momo"]
+  
+  // POS & Hardware
+  receiptPrinter    String   @default("bluetooth")
+  barcodeScanner    String   @default("camera")
+  nfcEnabled        Boolean  @default(true)
+  
+  updatedAt         DateTime @updatedAt
 }
 
 model EmployeeProfile {
@@ -334,6 +368,8 @@ model Supplier {
   email         String?
   address       String?
   status        String   @default("active") // active, inactive
+  wholesalerId  String
+  wholesaler    WholesalerProfile @relation(fields: [wholesalerId], references: [id])
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   
@@ -343,15 +379,17 @@ model Supplier {
 
 // Supplier Payments - Track payments made to suppliers
 model SupplierPayment {
-  id          String   @id @default(uuid())
-  supplierId  String
-  supplier    Supplier @relation(fields: [supplierId], references: [id])
-  amount      Float
-  paymentDate DateTime
-  reference   String?
-  status      String   @default("completed") // pending, completed
-  notes       String?
-  createdAt   DateTime @default(now())
+  id            String   @id @default(uuid())
+  supplierId    String
+  supplier      Supplier @relation(fields: [supplierId], references: [id])
+  amount        Float
+  paymentDate   DateTime
+  reference     String?
+  status        String   @default("completed") // pending, completed
+  notes         String?
+  wholesalerId  String
+  wholesaler    WholesalerProfile @relation(fields: [wholesalerId], references: [id])
+  createdAt     DateTime @default(now())
 }
 
 // Retailer Credit - Credit limits and usage for retailers

@@ -236,7 +236,6 @@ export const retailerApi = {
   // Wholesalers & Stock
   getWholesalers: () => api.get('/retailer/wholesalers'),
   getWholesalerProducts: (params?: any) => api.get('/retailer/wholesaler/products', { params }), // Correct endpoint
-  createOrder: (data: any) => api.post('/retailer/orders', data),
 
   // Branch Management
   getBranches: () => api.get('/retailer/branches'),
@@ -317,6 +316,7 @@ export const wholesalerApi = {
     api.post(`/wholesaler/inventory/${id}/stock`, { quantity, type, reason }),
   updatePrice: (id: string, wholesalePrice: number, costPrice?: number) =>
     api.put(`/wholesaler/inventory/${id}/price`, { wholesale_price: wholesalePrice, cost_price: costPrice }),
+  deleteProduct: (id: string) => api.delete(`/wholesaler/inventory/${id}`),
 
   // Retailer Orders
   getRetailerOrders: (params?: any) => api.get('/wholesaler/retailer-orders', { params }),
@@ -339,7 +339,7 @@ export const wholesalerApi = {
     api.get(`/wholesaler/retailers/${id}/orders`, { params: { limit } }),
   getRetailerStats: (id: string) => api.get(`/wholesaler/retailers/${id}/stats`),
   updateRetailerCreditLimit: (id: string, creditLimit: number) =>
-    api.put(`/wholesaler/retailers/${id}/credit-limit`, { credit_limit: creditLimit }),
+    api.put(`/wholesaler/retailers/${id}/credit-limit`, { creditLimit }),
   blockRetailer: (id: string, reason: string) =>
     api.post(`/wholesaler/retailers/${id}/block`, { reason }),
   unblockRetailer: (id: string) => api.post(`/wholesaler/retailers/${id}/unblock`),
@@ -350,6 +350,11 @@ export const wholesalerApi = {
   approveCreditRequest: (id: string) => api.post(`/wholesaler/credit-requests/${id}/approve`),
   rejectCreditRequest: (id: string, reason?: string) =>
     api.post(`/wholesaler/credit-requests/${id}/reject`, { reason }),
+
+  // Profile & Settings
+  getProfile: () => api.get('/wholesaler/profile'),
+  updateProfile: (data: any) => api.put('/wholesaler/profile', data),
+  updateSettings: (data: any) => api.put('/wholesaler/settings', data),
 };
 
 // NFC Card APIs - for managing customer NFC cards
@@ -475,6 +480,24 @@ export const adminApi = {
   // Settings
   getSettings: () => api.get('/admin/settings'),
   updateSettings: (settings: Record<string, any>) => api.post('/admin/settings', { settings }),
+};
+
+// General Auth APIs (Protected)
+// These use role-based endpoints: /wholesaler/auth, /retailer/auth, etc.
+const getUserRole = () => {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  return user.role || 'wholesaler'; // Default to wholesaler
+};
+
+export const authApi = {
+  updatePassword: (data: any) => {
+    const role = getUserRole();
+    return api.put(`/${role}/auth/update-password`, data);
+  },
+  updatePin: (data: any) => {
+    const role = getUserRole();
+    return api.put(`/${role}/auth/update-pin`, data);
+  },
 };
 
 export default api;

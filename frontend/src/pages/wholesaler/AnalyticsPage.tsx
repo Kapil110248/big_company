@@ -58,6 +58,9 @@ export const AnalyticsPage: React.FC = () => {
   const [period, setPeriod] = useState('month');
   const [data, setData] = useState<AnalyticsData | null>(null);
 
+  const maxRevenue = Math.max(...(data?.revenue.daily.map(d => d.amount) || [1000000]));
+  const chartHeight = 150;
+
   useEffect(() => {
     fetchAnalytics();
   }, [period]);
@@ -67,52 +70,32 @@ export const AnalyticsPage: React.FC = () => {
     try {
       // Try to fetch real analytics
       const response = await wholesalerApi.getDashboardStats();
+      const stats = response.data;
+
       // Transform API response to analytics format
       setData({
         revenue: {
-          total: response.data.totalRevenue || 156000000,
-          change: 12.5,
-          daily: [
-            { date: '2024-11-24', amount: 5200000 },
-            { date: '2024-11-25', amount: 6800000 },
-            { date: '2024-11-26', amount: 7100000 },
-            { date: '2024-11-27', amount: 5900000 },
-            { date: '2024-11-28', amount: 8200000 },
-            { date: '2024-11-29', amount: 9100000 },
-            { date: '2024-11-30', amount: 8500000 },
-          ],
+          total: stats.totalRevenue || 0,
+          change: 0,
+          daily: stats.revenueTrend || [],
         },
         orders: {
-          total: response.data.totalOrders || 892,
-          change: 8.3,
+          total: stats.totalOrders || 0,
+          change: 0,
           byStatus: [
-            { status: 'Completed', count: 720 },
-            { status: 'Pending', count: 45 },
-            { status: 'Processing', count: 89 },
-            { status: 'Shipped', count: 38 },
+            { status: 'Completed', count: stats.totalOrders || 0 },
+            { status: 'Pending', count: stats.pendingOrdersCount || 0 },
           ],
         },
         products: {
-          total: response.data.totalProducts || 248,
-          lowStock: response.data.lowStockItems || 12,
-          topSelling: [
-            { name: 'Inyange Milk 1L', quantity: 2450, revenue: 2205000 },
-            { name: 'Bralirwa Beer 500ml', quantity: 1890, revenue: 1701000 },
-            { name: 'Prima Rice 5kg', quantity: 1245, revenue: 3735000 },
-            { name: 'Cooking Oil 5L', quantity: 980, revenue: 4900000 },
-            { name: 'Sugar 1kg', quantity: 1560, revenue: 1560000 },
-          ],
+          total: stats.totalProducts || 0,
+          lowStock: stats.lowStockItems || 0,
+          topSelling: stats.topSellingProducts || [],
         },
         retailers: {
-          total: response.data.activeRetailers || 156,
-          active: Math.floor((response.data.activeRetailers || 156) * 0.85),
-          topBuyers: [
-            { name: 'Kigali Mega Store', orders: 89, revenue: 12500000 },
-            { name: 'Nyarugenge Mart', orders: 67, revenue: 8900000 },
-            { name: 'Gasabo Trading', orders: 54, revenue: 7200000 },
-            { name: 'Kimihurura Shop', orders: 45, revenue: 5800000 },
-            { name: 'Remera Market', orders: 42, revenue: 5100000 },
-          ],
+          total: stats.activeRetailers || 0,
+          active: stats.activeRetailers || 0,
+          topBuyers: stats.topBuyers || [],
         },
       });
     } catch (error) {
@@ -296,6 +279,7 @@ export const AnalyticsPage: React.FC = () => {
       </Row>
 
       {/* Revenue Chart Placeholder */}
+      {/* Revenue Chart Placeholder */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24}>
           <Card title={<><LineChartOutlined /> Revenue Trend (Last 7 Days)</>}>
@@ -304,10 +288,10 @@ export const AnalyticsPage: React.FC = () => {
                 <div key={idx} style={{ flex: 1, textAlign: 'center' }}>
                   <div
                     style={{
-                      height: `${(day.amount / 10000000) * 150}px`,
+                      height: `${(day.amount / (maxRevenue || 1)) * chartHeight}px`,
                       background: 'linear-gradient(180deg, #722ed1 0%, #531dab 100%)',
                       borderRadius: '4px 4px 0 0',
-                      minHeight: 20,
+                      minHeight: 2,
                       transition: 'height 0.3s',
                     }}
                   />
@@ -315,7 +299,7 @@ export const AnalyticsPage: React.FC = () => {
                     {day.date.split('-')[2]}
                   </Text>
                   <Text style={{ fontSize: 10, display: 'block' }}>
-                    {(day.amount / 1000000).toFixed(1)}M
+                    {day.amount > 1000000 ? `${(day.amount / 1000000).toFixed(1)}M` : `${(day.amount / 1000).toFixed(0)}K`}
                   </Text>
                 </div>
               ))}
@@ -339,10 +323,10 @@ export const AnalyticsPage: React.FC = () => {
                           item.status === 'Completed'
                             ? 'green'
                             : item.status === 'Pending'
-                            ? 'orange'
-                            : item.status === 'Processing'
-                            ? 'blue'
-                            : 'cyan'
+                              ? 'orange'
+                              : item.status === 'Processing'
+                                ? 'blue'
+                                : 'cyan'
                         }
                       >
                         {item.status}
