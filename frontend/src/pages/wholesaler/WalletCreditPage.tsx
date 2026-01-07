@@ -59,29 +59,29 @@ interface WalletStats {
 
 interface SupplierOrder {
   id: string;
-  supplier_name: string;
-  invoice_number: string;
-  total_amount: number;
-  payment_status: 'paid' | 'pending' | 'partial';
-  items_count: number;
-  created_at: string;
-  paid_at?: string;
+  supplierName: string;
+  invoiceNumber: string;
+  totalAmount: number;
+  paymentStatus: 'paid' | 'pending' | 'partial';
+  itemsCount: number;
+  createdAt: string;
+  paidAt?: string;
 }
 
 interface CreditRequest {
   id: string;
-  retailer_id: string;
-  retailer_name: string;
-  retailer_shop: string;
-  retailer_phone: string;
-  current_credit: number;
-  credit_limit: number;
-  requested_amount: number;
+  retailerId: string;
+  retailerName: string;
+  retailerShop: string;
+  retailerPhone: string;
+  currentCredit: number;
+  creditLimit: number;
+  requestedAmount: number;
   reason: string;
   status: 'pending' | 'approved' | 'rejected';
-  created_at: string;
-  processed_at?: string;
-  rejection_reason?: string;
+  createdAt: string;
+  processedAt?: string;
+  rejectionReason?: string;
 }
 
 export const WalletCreditPage: React.FC = () => {
@@ -109,49 +109,27 @@ export const WalletCreditPage: React.FC = () => {
       ]);
 
       // Calculate wallet values from inventory stats
-      const stockValueSupplier = statsResponse.data?.stock_value_supplier_cost || 0;
-      const stockValueWholesaler = statsResponse.data?.stock_value_wholesaler_price || 0;
+      const stockValueSupplier = statsResponse.data?.stockValueSupplier || 0;
+      const stockValueWholesaler = statsResponse.data?.stockValueWholesaler || 0;
 
       setWalletStats({
         inventoryValueWallet: stockValueSupplier,
         profitWallet: stockValueWholesaler - stockValueSupplier,
-        totalCreditExtended: creditResponse.data?.stats?.totalCreditExtended || 2500000,
-        creditUsed: creditResponse.data?.stats?.totalCreditUsed || 1800000,
-        creditAvailable: creditResponse.data?.stats?.creditAvailable || 700000,
-        totalSupplierOrders: ordersResponse.data?.total || 45,
-        pendingSupplierPayments: ordersResponse.data?.pending_amount || 1500000,
+        totalCreditExtended: creditResponse.data?.stats?.totalCreditExtended || 0,
+        creditUsed: creditResponse.data?.stats?.totalCreditUsed || 0,
+        creditAvailable: creditResponse.data?.stats?.creditAvailable || 0,
+        totalSupplierOrders: ordersResponse.data?.count || 0,
+        pendingSupplierPayments: ordersResponse.data?.pendingAmount || 0,
       });
 
-      setSupplierOrders(ordersResponse.data?.orders || [
-        { id: '1', supplier_name: 'Bralirwa Ltd', invoice_number: 'SUP-INV-001', total_amount: 5000000, payment_status: 'paid', items_count: 120, created_at: '2024-12-01', paid_at: '2024-12-05' },
-        { id: '2', supplier_name: 'Inyange Industries', invoice_number: 'SUP-INV-002', total_amount: 3500000, payment_status: 'pending', items_count: 85, created_at: '2024-12-10' },
-        { id: '3', supplier_name: 'SONAFRUITS', invoice_number: 'SUP-INV-003', total_amount: 2800000, payment_status: 'paid', items_count: 65, created_at: '2024-11-28', paid_at: '2024-12-02' },
-        { id: '4', supplier_name: 'Rwanda Farmers Coffee', invoice_number: 'SUP-INV-004', total_amount: 1200000, payment_status: 'partial', items_count: 30, created_at: '2024-12-08' },
-      ]);
-
+      setSupplierOrders(ordersResponse.data?.orders || []);
       setCreditRequests(creditResponse.data?.requests || []);
     } catch (error) {
       console.error('Error fetching wallet data:', error);
-      // Set demo data
-      setWalletStats({
-        inventoryValueWallet: 12500000,
-        profitWallet: 3750000,
-        totalCreditExtended: 2500000,
-        creditUsed: 1800000,
-        creditAvailable: 700000,
-        totalSupplierOrders: 45,
-        pendingSupplierPayments: 1500000,
-      });
-      setSupplierOrders([
-        { id: '1', supplier_name: 'Bralirwa Ltd', invoice_number: 'SUP-INV-001', total_amount: 5000000, payment_status: 'paid', items_count: 120, created_at: '2024-12-01', paid_at: '2024-12-05' },
-        { id: '2', supplier_name: 'Inyange Industries', invoice_number: 'SUP-INV-002', total_amount: 3500000, payment_status: 'pending', items_count: 85, created_at: '2024-12-10' },
-        { id: '3', supplier_name: 'SONAFRUITS', invoice_number: 'SUP-INV-003', total_amount: 2800000, payment_status: 'paid', items_count: 65, created_at: '2024-11-28', paid_at: '2024-12-02' },
-        { id: '4', supplier_name: 'Rwanda Farmers Coffee', invoice_number: 'SUP-INV-004', total_amount: 1200000, payment_status: 'partial', items_count: 30, created_at: '2024-12-08' },
-      ]);
-      setCreditRequests([
-        { id: '1', retailer_id: 'ret_001', retailer_name: 'Jean Pierre', retailer_shop: 'Kigali Shop', retailer_phone: '+250788100001', current_credit: 50000, credit_limit: 100000, requested_amount: 150000, reason: 'Expanding inventory for holiday season', status: 'pending', created_at: '2024-11-29T10:00:00Z' },
-        { id: '2', retailer_id: 'ret_002', retailer_name: 'Marie Claire', retailer_shop: 'Corner Store', retailer_phone: '+250788100002', current_credit: 25000, credit_limit: 50000, requested_amount: 75000, reason: 'New product line stocking', status: 'pending', created_at: '2024-11-28T14:30:00Z' },
-      ]);
+      // Set empty states if error
+      setWalletStats(null);
+      setSupplierOrders([]);
+      setCreditRequests([]);
     } finally {
       setLoading(false);
     }
@@ -166,15 +144,12 @@ export const WalletCreditPage: React.FC = () => {
     setProcessing(true);
     try {
       await wholesalerApi.approveCreditRequest(request.id);
-      message.success(`Credit request for ${request.retailer_name} approved!`);
+      message.success(`Credit request approved!`);
       fetchWalletData();
       setDetailsModal(false);
     } catch (error) {
-      message.success(`Credit request approved! (Demo mode)`);
-      setCreditRequests(prev => prev.map(r =>
-        r.id === request.id ? { ...r, status: 'approved' as const, processed_at: new Date().toISOString() } : r
-      ));
-      setDetailsModal(false);
+      console.error('Approve error:', error);
+      message.error(`Failed to approve credit request`);
     } finally {
       setProcessing(false);
     }
@@ -187,14 +162,14 @@ export const WalletCreditPage: React.FC = () => {
     }
     setProcessing(true);
     try {
-      await wholesalerApi.rejectCreditRequest(selectedRequest.id, rejectReason);
+      if (wholesalerApi.rejectCreditRequest) {
+        await wholesalerApi.rejectCreditRequest(selectedRequest.id, rejectReason);
+      }
       message.success(`Credit request rejected`);
       fetchWalletData();
     } catch (error) {
-      message.success(`Credit request rejected (Demo mode)`);
-      setCreditRequests(prev => prev.map(r =>
-        r.id === selectedRequest.id ? { ...r, status: 'rejected' as const, rejection_reason: rejectReason } : r
-      ));
+      console.error('Reject error:', error);
+      message.error(`Failed to reject credit request`);
     } finally {
       setRejectModal(false);
       setDetailsModal(false);
@@ -228,24 +203,47 @@ export const WalletCreditPage: React.FC = () => {
       render: (v: number) => <Text strong>{formatCurrency(v)}</Text>,
     },
     {
+      title: 'Supplier',
+      dataIndex: 'supplierName',
+      key: 'supplierName',
+      render: (name: string) => <Text strong>{name}</Text>,
+    },
+    {
+      title: 'Invoice #',
+      dataIndex: 'invoiceNumber',
+      key: 'invoiceNumber',
+      render: (v: string) => <Tag color="blue">{v}</Tag>,
+    },
+    {
+      title: 'Items',
+      dataIndex: 'itemsCount',
+      key: 'itemsCount',
+    },
+    {
+      title: 'Amount',
+      dataIndex: 'totalAmount',
+      key: 'totalAmount',
+      render: (v: number) => <Text strong>{formatCurrency(v)}</Text>,
+    },
+    {
       title: 'Payment Status',
-      dataIndex: 'payment_status',
-      key: 'payment_status',
+      dataIndex: 'paymentStatus',
+      key: 'paymentStatus',
       render: (status: string) => {
-        const colors: Record<string, string> = { paid: 'green', pending: 'orange', partial: 'blue' };
-        return <Tag color={colors[status]}>{status.toUpperCase()}</Tag>;
+        const colors: Record<string, string> = { completed: 'green', paid: 'green', pending: 'orange', partial: 'blue' };
+        return <Tag color={colors[status]}>{(status || 'pending').toUpperCase()}</Tag>;
       },
     },
     {
       title: 'Order Date',
-      dataIndex: 'created_at',
-      key: 'created_at',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
       render: (v: string) => formatDate(v),
     },
     {
       title: 'Paid Date',
-      dataIndex: 'paid_at',
-      key: 'paid_at',
+      dataIndex: 'paidAt',
+      key: 'paidAt',
       render: (v: string) => v ? formatDate(v) : <Text type="secondary">-</Text>,
     },
   ];
@@ -258,9 +256,9 @@ export const WalletCreditPage: React.FC = () => {
         <Space>
           <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#722ed1' }} />
           <div>
-            <Text strong>{record.retailer_name}</Text>
+            <Text strong>{record.retailerName}</Text>
             <br />
-            <Text type="secondary" style={{ fontSize: 12 }}>{record.retailer_shop}</Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>{record.retailerShop}</Text>
           </div>
         </Space>
       ),
@@ -270,15 +268,15 @@ export const WalletCreditPage: React.FC = () => {
       key: 'current',
       render: (_: any, record: CreditRequest) => (
         <div>
-          <Text>{formatCurrency(record.current_credit)}</Text>
+          <Text>{formatCurrency(record.currentCredit)}</Text>
           <br />
-          <Text type="secondary" style={{ fontSize: 12 }}>/ {formatCurrency(record.credit_limit)} limit</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>/ {formatCurrency(record.creditLimit)} limit</Text>
         </div>
       ),
     },
     {
       title: 'Requested',
-      dataIndex: 'requested_amount',
+      dataIndex: 'requestedAmount',
       key: 'requested',
       render: (amount: number) => <Text strong style={{ color: '#1890ff' }}>{formatCurrency(amount)}</Text>,
     },
@@ -475,17 +473,17 @@ export const WalletCreditPage: React.FC = () => {
               <Space>
                 <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#722ed1' }} />
                 <div>
-                  <Text strong>{selectedRequest.retailer_name}</Text>
+                  <Text strong>{selectedRequest.retailerName}</Text>
                   <br />
-                  <Text type="secondary">{selectedRequest.retailer_shop}</Text>
+                  <Text type="secondary">{selectedRequest.retailerShop}</Text>
                 </div>
               </Space>
             </Descriptions.Item>
-            <Descriptions.Item label="Phone">{selectedRequest.retailer_phone}</Descriptions.Item>
-            <Descriptions.Item label="Current Credit Used">{formatCurrency(selectedRequest.current_credit)}</Descriptions.Item>
-            <Descriptions.Item label="Credit Limit">{formatCurrency(selectedRequest.credit_limit)}</Descriptions.Item>
+            <Descriptions.Item label="Phone">{selectedRequest.retailerPhone}</Descriptions.Item>
+            <Descriptions.Item label="Current Credit Used">{formatCurrency(selectedRequest.currentCredit)}</Descriptions.Item>
+            <Descriptions.Item label="Credit Limit">{formatCurrency(selectedRequest.creditLimit)}</Descriptions.Item>
             <Descriptions.Item label="Requested Amount">
-              <Text strong style={{ color: '#1890ff', fontSize: 16 }}>{formatCurrency(selectedRequest.requested_amount)}</Text>
+              <Text strong style={{ color: '#1890ff', fontSize: 16 }}>{formatCurrency(selectedRequest.requestedAmount)}</Text>
             </Descriptions.Item>
             <Descriptions.Item label="Reason">{selectedRequest.reason}</Descriptions.Item>
             <Descriptions.Item label="Status">
@@ -493,8 +491,8 @@ export const WalletCreditPage: React.FC = () => {
                 {selectedRequest.status.toUpperCase()}
               </Tag>
             </Descriptions.Item>
-            {selectedRequest.rejection_reason && (
-              <Descriptions.Item label="Rejection Reason">{selectedRequest.rejection_reason}</Descriptions.Item>
+            {selectedRequest.rejectionReason && (
+              <Descriptions.Item label="Rejection Reason">{selectedRequest.rejectionReason}</Descriptions.Item>
             )}
           </Descriptions>
         )}

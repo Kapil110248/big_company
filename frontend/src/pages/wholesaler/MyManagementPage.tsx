@@ -87,6 +87,12 @@ export const MyManagementPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [invoices, setInvoices] = useState<ProfitInvoice[]>([]);
+  const [managementStats, setManagementStats] = useState({
+    totalSuppliers: 0,
+    activeSuppliers: 0,
+    outstandingPayments: 0,
+    netProfit: 0
+  });
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<ProfitInvoice | null>(null);
   const [supplierModalOpen, setSupplierModalOpen] = useState(false);
@@ -133,6 +139,19 @@ export const MyManagementPage: React.FC = () => {
 
       const invoicesData = await invoicesResponse.json();
       setInvoices(invoicesData.invoices || []);
+
+      // Fetch management stats from real API
+      const statsResponse = await fetch('http://localhost:9000/wholesaler/management/stats', {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json();
+        setManagementStats(statsData);
+      }
 
     } catch (error) {
       console.error('Error fetching management data:', error);
@@ -181,10 +200,10 @@ export const MyManagementPage: React.FC = () => {
     }
   };
 
-  const totalSuppliers = suppliers.length;
-  const activeSuppliers = suppliers.filter(s => s.status === 'active').length;
-  const totalOutstanding = suppliers.reduce((sum, s) => sum + s.outstanding_balance, 0);
-  const totalNetProfit = invoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + i.net_profit, 0);
+  const totalSuppliers = managementStats.totalSuppliers;
+  const activeSuppliers = managementStats.activeSuppliers;
+  const totalOutstanding = managementStats.outstandingPayments;
+  const totalNetProfit = managementStats.netProfit;
 
   const supplierColumns = [
     {

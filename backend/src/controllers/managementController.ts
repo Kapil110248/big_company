@@ -18,14 +18,19 @@ export const getManagementStats = async (req: AuthRequest, res: Response) => {
             return res.status(404).json({ error: 'Wholesaler profile not found' });
         }
 
-        // Get total suppliers count
         const totalSuppliers = await prisma.supplier.count({
-            where: { status: 'active' }
+            where: {
+                status: 'active',
+                wholesalerId: (wholesalerProfile as any).id
+            } as any
         });
 
         // Get active suppliers count
         const activeSuppliers = await prisma.supplier.count({
-            where: { status: 'active' }
+            where: {
+                status: 'active',
+                wholesalerId: (wholesalerProfile as any).id
+            } as any
         });
 
         // Calculate outstanding payments to suppliers
@@ -42,12 +47,15 @@ export const getManagementStats = async (req: AuthRequest, res: Response) => {
 
         // Calculate total cost of products from suppliers
         const totalProductCost = products.reduce((sum, product) => {
-            return sum + ((product.costPrice || 0) * product.stock);
+            return sum + ((product.costPrice || 0) * (product as any).stock);
         }, 0);
 
-        // Get total payments made to suppliers
+        // Get total payments made to suppliers for THIS wholesaler
         const payments = await prisma.supplierPayment.findMany({
-            where: { status: 'completed' }
+            where: {
+                status: 'completed',
+                wholesalerId: (wholesalerProfile as any).id
+            } as any
         });
 
         const totalPaid = payments.reduce((sum, payment) => sum + payment.amount, 0);
@@ -55,19 +63,17 @@ export const getManagementStats = async (req: AuthRequest, res: Response) => {
         // Outstanding = Total Cost - Total Paid
         const outstandingPayments = Math.max(0, totalProductCost - totalPaid);
 
-        // Calculate net profit from paid invoices
+        // Calculate net profit from paid invoices for THIS wholesaler
         const paidInvoices = await prisma.profitInvoice.findMany({
-            include: {
-                order: true
-            }
+            where: {
+                order: {
+                    wholesalerId: (wholesalerProfile as any).id,
+                    status: 'completed'
+                }
+            } as any
         });
 
-        // Filter invoices for this wholesaler's completed orders
-        const wholesalerInvoices = paidInvoices.filter(
-            invoice => invoice.order.wholesalerId === wholesalerProfile.id && invoice.order.status === 'completed'
-        );
-
-        const netProfit = wholesalerInvoices.reduce((sum, invoice) => sum + invoice.profitAmount, 0);
+        const netProfit = paidInvoices.reduce((sum, invoice) => sum + invoice.profitAmount, 0);
 
         console.log('✅ Management stats calculated');
         res.json({
@@ -90,22 +96,35 @@ export const getManagementSuppliers = async (req: AuthRequest, res: Response) =>
     try {
         console.log('🏭 Fetching suppliers for management');
 
+        const wholesalerProfile = await prisma.wholesalerProfile.findUnique({
+            where: { userId: req.user!.id }
+        });
+
+        if (!wholesalerProfile) {
+            return res.status(404).json({ error: 'Wholesaler profile not found' });
+        }
+
         const suppliers = await prisma.supplier.findMany({
+            where: {
+                wholesalerId: (wholesalerProfile as any).id
+            } as any,
             include: {
                 products: true,
-                payments: true
-            },
+                payments: {
+                    where: { wholesalerId: (wholesalerProfile as any).id }
+                }
+            } as any,
             orderBy: { name: 'asc' }
         });
 
         // Transform suppliers to match frontend expectations
-        const transformedSuppliers = suppliers.map(supplier => {
-            const totalPaid = supplier.payments
-                .filter(p => p.status === 'completed')
-                .reduce((sum, p) => sum + p.amount, 0);
+        const transformedSuppliers = suppliers.map((supplier: any) => {
+            const totalPaid = ((supplier as any).payments || [])
+                .filter((p: any) => p.status === 'completed')
+                .reduce((sum: number, p: any) => sum + p.amount, 0);
 
-            const totalProductCost = supplier.products.reduce((sum, product) => {
-                return sum + ((product.costPrice || 0) * product.stock);
+            const totalProductCost = ((supplier as any).products || []).reduce((sum: number, product: any) => {
+                return sum + ((product.costPrice || 0) * (product as any).stock);
             }, 0);
 
             const outstandingBalance = Math.max(0, totalProductCost - totalPaid);
@@ -120,10 +139,10 @@ export const getManagementSuppliers = async (req: AuthRequest, res: Response) =>
                 address: supplier.address || '',
                 status: supplier.status as 'active' | 'inactive',
                 payment_terms: 'Net 30', // Default, can be added to schema later
-                total_orders: supplier.payments.length,
+                total_orders: ((supplier as any).payments || []).length,
                 total_paid: totalPaid,
                 outstanding_balance: outstandingBalance,
-                products_supplied: supplier.products.length,
+                products_supplied: ((supplier as any).products || []).length,
                 created_at: supplier.createdAt.toISOString()
             };
         });
@@ -144,26 +163,38 @@ export const getSupplierDetails = async (req: AuthRequest, res: Response) => {
         const { id } = req.params;
         console.log('🔍 Fetching supplier details for ID:', id);
 
-        const supplier = await prisma.supplier.findUnique({
-            where: { id },
+        const wholesalerProfile = await prisma.wholesalerProfile.findUnique({
+            where: { userId: req.user!.id }
+        });
+
+        if (!wholesalerProfile) {
+            return res.status(404).json({ error: 'Wholesaler profile not found' });
+        }
+
+        const supplier = await prisma.supplier.findFirst({
+            where: {
+                id,
+                wholesalerId: (wholesalerProfile as any).id
+            } as any,
             include: {
                 products: true,
                 payments: {
+                    where: { wholesalerId: (wholesalerProfile as any).id },
                     orderBy: { paymentDate: 'desc' }
                 }
-            }
+            } as any
         });
 
         if (!supplier) {
             return res.status(404).json({ error: 'Supplier not found' });
         }
 
-        const totalPaid = supplier.payments
-            .filter(p => p.status === 'completed')
-            .reduce((sum, p) => sum + p.amount, 0);
+        const totalPaid = ((supplier as any).payments || [])
+            .filter((p: any) => p.status === 'completed')
+            .reduce((sum: number, p: any) => sum + p.amount, 0);
 
-        const totalProductCost = supplier.products.reduce((sum, product) => {
-            return sum + ((product.costPrice || 0) * product.stock);
+        const totalProductCost = ((supplier as any).products || []).reduce((sum: number, product: any) => {
+            return sum + ((product.costPrice || 0) * (product as any).stock);
         }, 0);
 
         const outstandingBalance = Math.max(0, totalProductCost - totalPaid);
@@ -178,12 +209,12 @@ export const getSupplierDetails = async (req: AuthRequest, res: Response) => {
             address: supplier.address || '',
             status: supplier.status as 'active' | 'inactive',
             payment_terms: 'Net 30',
-            total_orders: supplier.payments.length,
+            total_orders: ((supplier as any).payments || []).length,
             total_paid: totalPaid,
             outstanding_balance: outstandingBalance,
-            products_supplied: supplier.products.length,
+            products_supplied: ((supplier as any).products || []).length,
             created_at: supplier.createdAt.toISOString(),
-            payments: supplier.payments.map(p => ({
+            payments: ((supplier as any).payments || []).map((p: any) => ({
                 id: p.id,
                 amount: p.amount,
                 paymentDate: p.paymentDate.toISOString(),
@@ -211,6 +242,14 @@ export const createSupplier = async (req: AuthRequest, res: Response) => {
             return res.status(400).json({ error: 'Supplier name is required' });
         }
 
+        const wholesalerProfile = await prisma.wholesalerProfile.findUnique({
+            where: { userId: req.user!.id }
+        });
+
+        if (!wholesalerProfile) {
+            return res.status(404).json({ error: 'Wholesaler profile not found' });
+        }
+
         const supplier = await prisma.supplier.create({
             data: {
                 name,
@@ -218,8 +257,9 @@ export const createSupplier = async (req: AuthRequest, res: Response) => {
                 email,
                 phone,
                 address,
-                status: 'active'
-            }
+                status: 'active',
+                wholesalerId: wholesalerProfile.id
+            } as any
         });
 
         console.log('✅ Supplier created:', supplier.id);
@@ -254,8 +294,20 @@ export const updateSupplier = async (req: AuthRequest, res: Response) => {
         const { name, contact_person, email, phone, address, status } = req.body;
         console.log('✏️ Updating supplier:', id);
 
+        const wholesalerProfile = await prisma.wholesalerProfile.findUnique({
+            where: { userId: req.user!.id }
+        });
+
+        if (!wholesalerProfile) {
+            return res.status(404).json({ error: 'Wholesaler profile not found' });
+        }
+
+        // Verify ownership and update
         const supplier = await prisma.supplier.update({
-            where: { id },
+            where: {
+                id,
+                wholesalerId: (wholesalerProfile as any).id
+            } as any,
             data: {
                 ...(name && { name }),
                 ...(contact_person && { contactPerson: contact_person }),
@@ -266,16 +318,18 @@ export const updateSupplier = async (req: AuthRequest, res: Response) => {
             },
             include: {
                 products: true,
-                payments: true
-            }
+                payments: {
+                    where: { wholesalerId: (wholesalerProfile as any).id }
+                }
+            } as any
         });
 
-        const totalPaid = supplier.payments
-            .filter(p => p.status === 'completed')
-            .reduce((sum, p) => sum + p.amount, 0);
+        const totalPaid = ((supplier as any).payments || [])
+            .filter((p: any) => p.status === 'completed')
+            .reduce((sum: number, p: any) => sum + p.amount, 0);
 
-        const totalProductCost = supplier.products.reduce((sum, product) => {
-            return sum + ((product.costPrice || 0) * product.stock);
+        const totalProductCost = ((supplier as any).products || []).reduce((sum: number, product: any) => {
+            return sum + ((product.costPrice || 0) * (product as any).stock);
         }, 0);
 
         const outstandingBalance = Math.max(0, totalProductCost - totalPaid);
@@ -293,10 +347,10 @@ export const updateSupplier = async (req: AuthRequest, res: Response) => {
                 address: supplier.address || '',
                 status: supplier.status as 'active' | 'inactive',
                 payment_terms: 'Net 30',
-                total_orders: supplier.payments.length,
+                total_orders: ((supplier as any).payments || []).length,
                 total_paid: totalPaid,
                 outstanding_balance: outstandingBalance,
-                products_supplied: supplier.products.length,
+                products_supplied: ((supplier as any).products || []).length,
                 created_at: supplier.createdAt.toISOString()
             }
         });
@@ -311,9 +365,20 @@ export const deleteSupplier = async (req: AuthRequest, res: Response) => {
         const { id } = req.params;
         console.log('🗑️ Deleting supplier:', id);
 
-        // Soft delete by setting status to inactive
+        const wholesalerProfile = await prisma.wholesalerProfile.findUnique({
+            where: { userId: req.user!.id }
+        });
+
+        if (!wholesalerProfile) {
+            return res.status(404).json({ error: 'Wholesaler profile not found' });
+        }
+
+        // Soft delete by setting status to inactive - checking ownership
         await prisma.supplier.update({
-            where: { id },
+            where: {
+                id,
+                wholesalerId: (wholesalerProfile as any).id
+            } as any,
             data: { status: 'inactive' }
         });
 
@@ -341,17 +406,14 @@ export const getProfitInvoices = async (req: AuthRequest, res: Response) => {
             return res.status(404).json({ error: 'Wholesaler profile not found' });
         }
 
-        const allInvoices = await prisma.profitInvoice.findMany({
-            include: {
-                order: true
+        const invoices = await prisma.profitInvoice.findMany({
+            where: {
+                order: {
+                    wholesalerId: (wholesalerProfile as any).id
+                } as any
             },
             orderBy: { generatedAt: 'desc' }
         });
-
-        // Filter invoices for this wholesaler
-        const invoices = allInvoices.filter(
-            invoice => invoice.order.wholesalerId === wholesalerProfile.id
-        );
 
         // Transform invoices to match frontend expectations
         const transformedInvoices = invoices.map(invoice => {

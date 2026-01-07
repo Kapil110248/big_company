@@ -4,6 +4,13 @@ async function seedSuppliers() {
     console.log('🌱 Seeding suppliers...');
 
     try {
+        // Get a wholesaler to link to
+        const wholesaler = await prisma.wholesalerProfile.findFirst();
+        if (!wholesaler) {
+            console.log('❌ No wholesaler found. Please seed wholesalers first.');
+            return;
+        }
+
         // Create suppliers
         const suppliers = await Promise.all([
             prisma.supplier.create({
@@ -13,7 +20,8 @@ async function seedSuppliers() {
                     email: 'orders@bralirwa.rw',
                     phone: '+250788000001',
                     address: 'KK 15 Ave, Kigali Industrial Zone',
-                    status: 'active'
+                    status: 'active',
+                    wholesalerId: wholesaler.id
                 }
             }),
             prisma.supplier.create({
@@ -23,7 +31,8 @@ async function seedSuppliers() {
                     email: 'sales@inyange.rw',
                     phone: '+250788000002',
                     address: 'Masaka Sector, Kicukiro',
-                    status: 'active'
+                    status: 'active',
+                    wholesalerId: wholesaler.id
                 }
             }),
             prisma.supplier.create({
@@ -33,7 +42,8 @@ async function seedSuppliers() {
                     email: 'info@sonafruits.rw',
                     phone: '+250788000003',
                     address: 'Nyagatare District',
-                    status: 'active'
+                    status: 'active',
+                    wholesalerId: wholesaler.id
                 }
             }),
             prisma.supplier.create({
@@ -43,7 +53,8 @@ async function seedSuppliers() {
                     email: 'coffee@rwandafarmers.rw',
                     phone: '+250788000004',
                     address: 'Huye District',
-                    status: 'active'
+                    status: 'active',
+                    wholesalerId: wholesaler.id
                 }
             })
         ]);
@@ -55,6 +66,7 @@ async function seedSuppliers() {
             prisma.supplierPayment.create({
                 data: {
                     supplierId: suppliers[0].id,
+                    wholesalerId: wholesaler.id,
                     amount: 5000000,
                     paymentDate: new Date('2024-12-01'),
                     reference: 'PAY-001',
@@ -65,6 +77,7 @@ async function seedSuppliers() {
             prisma.supplierPayment.create({
                 data: {
                     supplierId: suppliers[1].id,
+                    wholesalerId: wholesaler.id,
                     amount: 3500000,
                     paymentDate: new Date('2024-12-05'),
                     reference: 'PAY-002',
@@ -75,6 +88,7 @@ async function seedSuppliers() {
             prisma.supplierPayment.create({
                 data: {
                     supplierId: suppliers[2].id,
+                    wholesalerId: wholesaler.id,
                     amount: 2800000,
                     paymentDate: new Date('2024-12-10'),
                     reference: 'PAY-003',

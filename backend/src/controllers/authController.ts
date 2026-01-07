@@ -85,7 +85,7 @@ export const register = async (req: Request, res: Response) => {
 export const login = async (req: Request, res: Response) => {
   try {
     const { email, password, phone, pin } = req.body;
-    
+
     let targetRole = req.body.role;
     if (!targetRole) {
       if (req.baseUrl.includes('store')) targetRole = 'consumer';
@@ -119,10 +119,10 @@ export const login = async (req: Request, res: Response) => {
     // Verify Password or PIN
     let valid = false;
     if (targetRole === 'consumer') {
-       if (user.pin && pin && await comparePassword(pin, user.pin)) valid = true;
-       else if (user.password && password && await comparePassword(password, user.password)) valid = true;
+      if (user.pin && pin && await comparePassword(pin, user.pin)) valid = true;
+      else if (user.password && password && await comparePassword(password, user.password)) valid = true;
     } else {
-       if (user.password && await comparePassword(password, user.password)) valid = true;
+      if (user.password && await comparePassword(password, user.password)) valid = true;
     }
 
     if (!valid) {
@@ -186,6 +186,60 @@ export const login = async (req: Request, res: Response) => {
 
   } catch (error: any) {
     console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const updatePassword = async (req: any, res: Response) => {
+  try {
+    const { old_password, new_password } = req.body;
+    const userId = req.user.id;
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.password) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const isValid = await comparePassword(old_password, user.password);
+    if (!isValid) {
+      return res.status(400).json({ error: 'Incorrect current password' });
+    }
+
+    const hashedPassword = await hashPassword(new_password);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword }
+    });
+
+    res.json({ success: true, message: 'Password updated successfully' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const updatePin = async (req: any, res: Response) => {
+  try {
+    const { old_pin, new_pin } = req.body;
+    const userId = req.user.id;
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.pin) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const isValid = await comparePassword(old_pin, user.pin);
+    if (!isValid) {
+      return res.status(400).json({ error: 'Incorrect current PIN' });
+    }
+
+    const hashedPin = await hashPassword(new_pin);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { pin: hashedPin }
+    });
+
+    res.json({ success: true, message: 'PIN updated successfully' });
+  } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 };
