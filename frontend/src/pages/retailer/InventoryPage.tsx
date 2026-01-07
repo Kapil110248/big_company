@@ -182,9 +182,9 @@ export const InventoryPage = () => {
         out_of_stock_count: allProducts.filter((p: Product) => p.stock === 0).length,
         categories: uniqueCategories.size,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load inventory:', error);
-      message.error('Failed to load inventory');
+      message.error(`Failed to load inventory: ${error.response?.data?.error || error.message}`);
     } finally {
       setLoading(false);
       setRefreshing(false);

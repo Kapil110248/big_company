@@ -72,19 +72,27 @@ const AddStockPage: React.FC = () => {
 
   const fetchData = async () => {
     setLoading(true);
+    
+    // 1. Fetch Wholesaler Products
     try {
-      const [productsRes, walletRes] = await Promise.all([
-        retailerApi.getWholesalerProducts({ limit: 100 }),
-        retailerApi.getWallet()
-      ]);
+      const productsRes = await retailerApi.getWholesalerProducts({ limit: 100 });
       setProducts(productsRes.data?.products || []);
-      setCapitalWalletBalance(walletRes.data?.capital_wallet_balance || walletRes.data?.balance || 0);
-    } catch (error) {
-      console.error('Failed to load stock data:', error);
-      message.error('Failed to load wholesaler products');
-    } finally {
-      setLoading(false);
+    } catch (error: any) {
+      console.error('Failed to load wholesaler products:', error);
+      message.error(`Failed to load wholesaler products: ${error.response?.data?.error || error.message}`);
     }
+
+    // 2. Fetch Wallet Balance
+    try {
+      const walletRes = await retailerApi.getWallet();
+      setCapitalWalletBalance(walletRes.data?.capital_wallet_balance || walletRes.data?.balance || 0);
+    } catch (error: any) {
+      console.error('Failed to load wallet:', error);
+      // Optional: don't show error to user if just wallet fails, or show a different one
+      // message.error('Failed to load wallet balance'); 
+    }
+
+    setLoading(false);
   };
 
   const categories = [...new Set(products.map(p => p.category))];
